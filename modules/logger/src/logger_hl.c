@@ -14,18 +14,14 @@
 #include "azure_c_shared_utility/iot_logging.h"
 #include "parson.h"
 
-static MODULE_HANDLE Logger_HL_Create(MESSAGE_BUS_HANDLE busHandle, const void* configuration)
+static MODULE_HANDLE Logger_HL_Create(const void* configuration)
 {
     
     MODULE_HANDLE result;
-    /*Codes_SRS_LOGGER_HL_02_001: [ If busHandle is NULL then Logger_HL_Create shall fail and return NULL. ]*/
     /*Codes_SRS_LOGGER_HL_02_003: [ If configuration is NULL then Logger_HL_Create shall fail and return NULL. ]*/
-    if(
-        (busHandle == NULL) ||
-        (configuration == NULL)
-    )
+    if(configuration == NULL)
     { 
-        LogError("NULL parameter detected busHandle=%p configuration=%p", busHandle, configuration);
+        LogError("NULL parameter detected configuration=%p", configuration);
         result = NULL;
     }
     else
@@ -62,8 +58,8 @@ static MODULE_HANDLE Logger_HL_Create(MESSAGE_BUS_HANDLE busHandle, const void* 
                     config.selector = LOGGING_TO_FILE;
                     config.selectee.loggerConfigFile.name = fileNameValue;
                     
-                    /*Codes_SRS_LOGGER_HL_02_005: [ Logger_HL_Create shall pass busHandle and the filename to Logger_Create. ]*/
-                    result = MODULE_STATIC_GETAPIS(LOGGER_MODULE)()->Module_Create(busHandle, &config);
+                    /*Codes_SRS_LOGGER_HL_02_005: [ Logger_HL_Create shall pass the filename to Logger_Create. ]*/
+                    result = MODULE_STATIC_GETAPIS(LOGGER_MODULE)()->Module_Create(&config);
 
                     if (result == NULL)
                     {
@@ -94,7 +90,7 @@ static void Logger_HL_Destroy(MODULE_HANDLE module)
 static void Logger_HL_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messageHandle)
 {
     /*Codes_SRS_LOGGER_HL_02_008: [ Logger_HL_Receive shall pass the received parameters to the underlying Logger's _Receive function. ]*/
-    MODULE_STATIC_GETAPIS(LOGGER_MODULE)()->Module_Receive(moduleHandle, messageHandle);
+    //MODULE_STATIC_GETAPIS(LOGGER_MODULE)()->Module_Receive(moduleHandle, messageHandle);
 }
 
 /*
@@ -103,8 +99,7 @@ static void Logger_HL_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE message
 static const MODULE_APIS Logger_HL_APIS_all =
 {
 	Logger_HL_Create,
-	Logger_HL_Destroy,
-	Logger_HL_Receive
+	Logger_HL_Destroy
 };
 
 #ifdef BUILD_MODULE_TYPE_STATIC

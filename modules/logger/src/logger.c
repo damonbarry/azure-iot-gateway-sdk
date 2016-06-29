@@ -114,17 +114,13 @@ static int append_logStartStop(FILE* fout, bool appendStart, bool isAbsoluteStar
     return result;
 }
 
-static MODULE_HANDLE Logger_Create(MESSAGE_BUS_HANDLE busHandle, const void* configuration)
+static MODULE_HANDLE Logger_Create(const void* configuration)
 {
     LOGGER_HANDLE_DATA* result;
-    /*Codes_SRS_LOGGER_02_001: [If busHandle is NULL then Logger_Create shall fail and return NULL.]*/
     /*Codes_SRS_LOGGER_02_002: [If configuration is NULL then Logger_Create shall fail and return NULL.]*/
-    if (
-        (busHandle == NULL) ||
-        (configuration == NULL) 
-        )
+    if (configuration == NULL)
     {
-        LogError("invalid arg busHandle=%p configuration=%p", busHandle, configuration);
+        LogError("invalid arg configuration=%p", configuration);
         result = NULL;
     }
     else
@@ -411,8 +407,7 @@ static void Logger_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messageHan
 static const MODULE_APIS Logger_APIS_all =
 {
 	Logger_Create,
-	Logger_Destroy,
-	Logger_Receive
+	Logger_Destroy
 };
 
 #ifdef BUILD_MODULE_TYPE_STATIC

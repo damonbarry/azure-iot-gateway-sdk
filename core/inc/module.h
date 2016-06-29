@@ -21,7 +21,6 @@ typedef void* MODULE_HANDLE;
 typedef struct MODULE_APIS_TAG MODULE_APIS;
 
 #include "azure_c_shared_utility/macro_utils.h"
-#include "message_bus.h"
 #include "message.h"
 
 #ifdef __cplusplus
@@ -34,15 +33,13 @@ extern "C"
 	*
 	*	@details	This function is to be implemented by the module creator.
 	*
-	*	@param		busHandle		The #MESSAGE_BUS_HANDLE onto which this module
-	*								will connect.
 	*	@param		configureation	A pointer to the user-defined configuration 
 	*								structure for this module.
 	*
 	*	@return		A non-NULL #MODULE_HANDLE upon success, or @c NULL upon 
 	*			failure.
 	*/
-    typedef MODULE_HANDLE(*pfModule_Create)(MESSAGE_BUS_HANDLE busHandle, const void* configuration);
+    typedef MODULE_HANDLE(*pfModule_Create)(const void* configuration);
 
 	/** @brief		Disposes of the resources allocated by/for this module.
 	*
@@ -51,18 +48,6 @@ extern "C"
 	*	@param		moduleHandle	The #MODULE_HANDLE of the module to be destroyed.
 	*/
     typedef void(*pfModule_Destroy)(MODULE_HANDLE moduleHandle);
-
-	/** @brief		The module's callback function that is called upon message 
-	*				receipt.
-	*
-	*	@details	This function is to be implemented by the module creator.
-	*
-	*	@param		moduleHandle	The #MODULE_HANDLE of the module receiving the
-	*								message.
-	*	@param		messageHandle	The #MESSAGE_HANDLE of the message being sent
-	*								to the module.
-	*/
-	typedef void(*pfModule_Receive)(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messageHandle);
 
 	/** @brief	Structure returned by ::Module_GetAPIS containing the function
 	*			pointers of the module-specific implementations of the interface.
@@ -74,9 +59,6 @@ extern "C"
 
 		/** @brief Function pointer to the #Module_Destroy function. */
         pfModule_Destroy Module_Destroy;
-
-		/** @brief Function pointer to the #Module_Receive function. */
-        pfModule_Receive Module_Receive;
     }MODULE_APIS;
 
 	/** @brief	This is the only function exported by a module. Using the 

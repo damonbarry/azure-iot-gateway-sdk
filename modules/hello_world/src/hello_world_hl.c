@@ -12,10 +12,10 @@
 #include "hello_world.h"
 #include "hello_world_hl.h"
 
-static MODULE_HANDLE HelloWorld_HL_Create(MESSAGE_BUS_HANDLE busHandle, const void* configuration)
+static MODULE_HANDLE HelloWorld_HL_Create(const void* configuration)
 {
     MODULE_HANDLE result;
-    if((result = MODULE_STATIC_GETAPIS(HELLOWORLD_MODULE)()->Module_Create(busHandle, configuration))==NULL)
+    if((result = MODULE_STATIC_GETAPIS(HELLOWORLD_MODULE)()->Module_Create(configuration))==NULL)
     {
         LogError("unable to Module_Create HELLOWORLD static");
     }
@@ -33,14 +33,13 @@ static void HelloWorld_HL_Destroy(MODULE_HANDLE module)
 
 static void HelloWorld_HL_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messageHandle)
 {
-    MODULE_STATIC_GETAPIS(HELLOWORLD_MODULE)()->Module_Receive(moduleHandle, messageHandle);
+    //MODULE_STATIC_GETAPIS(HELLOWORLD_MODULE)()->Module_Receive(moduleHandle, messageHandle);
 }
 
 static const MODULE_APIS HelloWorld_HL_APIS_all =
 {
 	HelloWorld_HL_Create,
-	HelloWorld_HL_Destroy,
-	HelloWorld_HL_Receive
+	HelloWorld_HL_Destroy
 };
 
 #ifdef BUILD_MODULE_TYPE_STATIC

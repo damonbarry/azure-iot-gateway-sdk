@@ -19,7 +19,6 @@ typedef struct HELLOWORLD_HANDLE_DATA_TAG
     THREAD_HANDLE threadHandle;
     LOCK_HANDLE lockHandle;
     int stopThread;
-    MESSAGE_BUS_HANDLE busHandle;
 
 }HELLOWORLD_HANDLE_DATA;
 
@@ -66,7 +65,7 @@ int helloWorldThread(void *param)
                         }
                         else
                         {
-                            (void)MessageBus_Publish(handleData->busHandle, (MODULE_HANDLE)handleData, helloWorldMessage);
+                            //(void)MessageBus_Publish(handleData->busHandle, (MODULE_HANDLE)handleData, helloWorldMessage);
                             (void)Unlock(handleData->lockHandle);
                         }
                     }
@@ -83,50 +82,38 @@ int helloWorldThread(void *param)
     return 0;
 }
 
-static MODULE_HANDLE HelloWorld_Create(MESSAGE_BUS_HANDLE busHandle, const void* configuration)
+static MODULE_HANDLE HelloWorld_Create(const void* configuration)
 {
-    HELLOWORLD_HANDLE_DATA* result;
-    if (
-        (busHandle == NULL) /*configuration is not used*/
-        )
+    HELLOWORLD_HANDLE_DATA* result = malloc(sizeof(HELLOWORLD_HANDLE_DATA));
+    if(result == NULL)
     {
-        LogError("invalid arg busHandle=%p", busHandle);
-        result = NULL;
+        LogError("unable to malloc");
     }
     else
     {
-        result = malloc(sizeof(HELLOWORLD_HANDLE_DATA));
-        if(result == NULL)
+        result->lockHandle = Lock_Init();
+        if(result->lockHandle == NULL)
         {
-            LogError("unable to malloc");
+            LogError("unable to Lock_Init");
+            free(result);
+            result = NULL;
         }
         else
         {
-            result->lockHandle = Lock_Init();
-            if(result->lockHandle == NULL)
+            result->stopThread = 0;
+            if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
             {
-                LogError("unable to Lock_Init");
+                LogError("failed to spawn a thread");
+                (void)Lock_Deinit(result->lockHandle);
                 free(result);
                 result = NULL;
             }
             else
             {
-                result->stopThread = 0;
-                result->busHandle = busHandle;
-                if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
-                {
-                    LogError("failed to spawn a thread");
-                    (void)Lock_Deinit(result->lockHandle);
-                    free(result);
-                    result = NULL;
-                }
-                else
-                {
-                    /*all is fine apparently*/
-                }
+                /*all is fine apparently*/
             }
         }
-	}
+    }
     return result;
 }
 
@@ -163,8 +150,7 @@ static void HelloWorld_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messag
 static const MODULE_APIS HelloWorld_APIS_all =
 {
 	HelloWorld_Create,
-	HelloWorld_Destroy,
-	HelloWorld_Receive
+	HelloWorld_Destroy
 };
 
 #ifdef BUILD_MODULE_TYPE_STATIC
