@@ -76,6 +76,9 @@ endmacro(compileAsC11)
 enable_testing()
 compileAsC99()
 
+add_subdirectory(./deps/nanomsg)
+include_directories(./deps/nanomsg/src)
+
 #this adds the C shared utility
 add_subdirectory(./deps/azure-c-shared-utility)
 

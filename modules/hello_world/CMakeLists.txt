@@ -43,6 +43,7 @@ include_directories(${GW_INC})
 #this builds the hello_world dynamic library
 add_library(hello_world MODULE ${hello_world_sources}  ${hello_world_headers})
 target_link_libraries(hello_world gateway)
+add_dependencies(hello_world nanomsg)
 
 #this builds the hello_world static library
 add_library(hello_world_static  ${hello_world_static_sources} ${hello_world_static_headers})
