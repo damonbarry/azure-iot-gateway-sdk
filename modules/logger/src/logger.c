@@ -20,10 +20,21 @@
 #include "azure_c_shared_utility/base64.h"
 #include "azure_c_shared_utility/map.h"
 #include "azure_c_shared_utility/constmap.h"
+#include "azure_c_shared_utility/threadapi.h"
+#include "azure_c_shared_utility/lock.h"
+
+#include <nn.h>
+#include <pubsub.h>
+
+#define TOPIC_NAME "hello"
+#define TOPIC_ADDRESS "inproc://" TOPIC_NAME
 
 typedef struct LOGGER_HANDLE_DATA_TAG
 {
     FILE* fout;
+    THREAD_HANDLE threadHandle;
+    LOCK_HANDLE lockHandle;
+    int stopThread;
 }LOGGER_HANDLE_DATA;
 
 /*this function adds a JSON object to the output*/
@@ -113,6 +124,8 @@ static int append_logStartStop(FILE* fout, bool appendStart, bool isAbsoluteStar
     }
     return result;
 }
+
+int loggerThread(void *param);
 
 static MODULE_HANDLE Logger_Create(const void* configuration)
 {
@@ -243,6 +256,37 @@ static MODULE_HANDLE Logger_Create(const void* configuration)
                                     /*Codes_SRS_LOGGER_02_008: [Otherwise Logger_Create shall return a non-NULL pointer.]*/
                                     /*that is, return as is*/
                                 }
+
+                                result->lockHandle = Lock_Init();
+                                if (result->lockHandle == NULL)
+                                {
+                                    LogError("unable to Lock_Init");
+                                    if (fclose(result->fout) != 0)
+                                    {
+                                        LogError("unable to close file %s", config->selectee.loggerConfigFile.name);
+                                    }
+                                    free(result);
+                                    result = NULL;
+                                }
+                                else
+                                {
+                                    result->stopThread = 0;
+                                    if (ThreadAPI_Create(&result->threadHandle, loggerThread, result) != THREADAPI_OK)
+                                    {
+                                        LogError("failed to spawn a thread");
+                                        (void)Lock_Deinit(result->lockHandle);
+                                        if (fclose(result->fout) != 0)
+                                        {
+                                            LogError("unable to close file %s", config->selectee.loggerConfigFile.name);
+                                        }
+                                        free(result);
+                                        result = NULL;
+                                    }
+                                    else
+                                    {
+                                        /*all is fine apparently*/
+                                    }
+                                }
                             }
                         }
                     }
@@ -260,6 +304,25 @@ static void Logger_Destroy(MODULE_HANDLE module)
     {
         /*Codes_SRS_LOGGER_02_019: [Logger_Destroy shall add to the log file the following end of log JSON object:]*/
         LOGGER_HANDLE_DATA* moduleHandleData = (LOGGER_HANDLE_DATA *)module;
+        int notUsed;
+        if (Lock(moduleHandleData->lockHandle) != LOCK_OK)
+        {
+            LogError("not able to Lock, still setting the thread to finish");
+            moduleHandleData->stopThread = 1;
+        }
+        else
+        {
+            moduleHandleData->stopThread = 1;
+            Unlock(moduleHandleData->lockHandle);
+        }
+
+        if (ThreadAPI_Join(moduleHandleData->threadHandle, &notUsed) != THREADAPI_OK)
+        {
+            LogError("unable to ThreadAPI_Join, still proceeding in _Destroy");
+        }
+
+        (void)Lock_Deinit(moduleHandleData->lockHandle);
+
         if (append_logStartStop(moduleHandleData->fout, false, false) != 0)
         {
             LogError("unable to append log ending time");
@@ -276,129 +339,172 @@ static void Logger_Destroy(MODULE_HANDLE module)
     }
 }
 
-static void Logger_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messageHandle)
+int loggerThread(void *param)
 {
-    /*Codes_SRS_LOGGER_02_009: [If moduleHandle is NULL then Logger_Receive shall fail and return.]*/
-    /*Codes_SRS_LOGGER_02_010: [If messageHandle is NULL then Logger_Receive shall fail and return.]*/
-    if (
-        (moduleHandle == NULL) ||
-        (messageHandle == NULL)
-        )
+    LOGGER_HANDLE_DATA* handleData = param;
+
+    int subSocket = nn_socket(AF_SP, NN_SUB);
+    if (subSocket == -1)
     {
-        LogError("invalid arg moduleHandle = %p", moduleHandle);
+        LogError("unable to create NN_SUB socket");
     }
     else
     {
-        /*Codes_SRS_LOGGER_02_011: [Logger_Receive shall write in the fout FILE the following information in JSON format:]*/
-        /*
+        if (nn_setsockopt(subSocket, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) == -1)
         {
-            "time":"timeAsPrinted by strftime(\"%c\")",
-            "properties":
-            {
-                "property1":"value1",
-                "property2":"value2"
-            },
-            "content":"base64 encode of the message content"
-        },
-        */
-
-        /*the function will gather first all the values then will dump them into a STRING_HANDLE that is JSON*/
-
-        /*getting the time*/
-        time_t temp = time(NULL);
-        if (temp == (time_t)-1)
-        {
-            LogError("time function failed");
+            LogError("unable to subscribe to topic");
+            nn_close(subSocket);
         }
         else
         {
-            struct tm* t = localtime(&temp);
-            if (t == NULL)
-            {
-                LogError("localtime failed");
+            int endpointId = nn_connect(subSocket, TOPIC_ADDRESS);
+            if (endpointId == -1) {
+                LogError("unable to connect NN_SUB socket to endpoint %s", TOPIC_ADDRESS);
+                nn_close(subSocket);
             }
             else
             {
-                char timetemp[80] = { 0 };
-                if (strftime(timetemp, sizeof(timetemp) / sizeof(timetemp[0]), "%c", t) == 0)
+                while (1)
                 {
-                    LogError("unable to strftime");
-                    /*Codes_SRS_LOGGER_02_012: [If producing the JSON format or writing it to the file fails, then Logger_Receive shall fail and return.]*/
-                    /*just return*/
-                }
-                else
-                {
-                    /*getting the properties*/
-                    /*getting the constmap*/
-                    CONSTMAP_HANDLE originalProperties = Message_GetProperties(messageHandle); /*by contract this is never NULL*/
-                    MAP_HANDLE propertiesAsMap = ConstMap_CloneWriteable(originalProperties); /*sigh, if only there'd be a constmap_tojson*/
-                    if (propertiesAsMap == NULL)
+                    if (Lock(handleData->lockHandle) == LOCK_OK)
                     {
-                        LogError("ConstMap_CloneWriteable failed");
-                    }
-                    else
-                    {
-                        STRING_HANDLE jsonProperties = Map_ToJSON(propertiesAsMap);
-                        if (jsonProperties == NULL)
+                        if (handleData->stopThread)
                         {
-                            LogError("unable to Map_ToJSON");
+                            (void)Unlock(handleData->lockHandle);
+                            nn_close(subSocket);
+                            break; /*gets out of the thread*/
                         }
                         else
                         {
-                            /*getting the base64 encode of the message*/
-                            const CONSTBUFFER * content = Message_GetContent(messageHandle); /*by contract, this is never NULL*/
-                            STRING_HANDLE contentAsJSON = Base64_Encode_Bytes(content->buffer, content->size);
-                            if (contentAsJSON == NULL)
+                            (void)Unlock(handleData->lockHandle);
+
+                            void *buf = NULL;
+                            int nbytes = nn_recv(subSocket, &buf, NN_MSG, 0);
+                            if (nbytes == -1)
                             {
-								LogError("unable to Base64_Encode_Bytes");
+                                LogError("error in nn_recv");
                             }
                             else
                             {
-                                STRING_HANDLE jsonToBeAppended = STRING_construct(",{\"time\":\"");
-                                if (jsonToBeAppended == NULL)
+                                LogInfo("RECV [%d bytes] : %.5s", nbytes, (char*)buf);
+
+                                MESSAGE_HANDLE messageHandle = Message_CreateFromByteArray(buf, nbytes);
+                                if (messageHandle == NULL)
                                 {
-                                    LogError("unable to STRING_construct");
+                                    LogError("error in Message_CreateFromByteArray");
                                 }
                                 else
                                 {
+                                    /*the function will gather first all the values then will dump them into a STRING_HANDLE that is JSON*/
 
-                                    if (!(
-                                        (STRING_concat(jsonToBeAppended, timetemp) == 0) &&
-                                        (STRING_concat(jsonToBeAppended, "\",\"properties\":") == 0) &&
-                                        (STRING_concat_with_STRING(jsonToBeAppended, jsonProperties) == 0) &&
-                                        (STRING_concat(jsonToBeAppended, ",\"content\":\"") == 0) &&
-                                        (STRING_concat_with_STRING(jsonToBeAppended, contentAsJSON) == 0) &&
-                                        (STRING_concat(jsonToBeAppended, "\"}]") == 0)
-                                        ))
+                                    /*getting the time*/
+                                    time_t temp = time(NULL);
+                                    if (temp == (time_t)-1)
                                     {
-                                        LogError("STRING concatenation error");
+                                        LogError("time function failed");
                                     }
                                     else
                                     {
-                                        LOGGER_HANDLE_DATA *handleData = (LOGGER_HANDLE_DATA *)moduleHandle;
-                                        if (addJSONString(handleData->fout, STRING_c_str(jsonToBeAppended)) != 0)
+                                        struct tm* t = localtime(&temp);
+                                        if (t == NULL)
                                         {
-                                            LogError("failed top add a json string to the output file");
+                                            LogError("localtime failed");
                                         }
                                         else
                                         {
-                                            /*all seems fine*/
+                                            char timetemp[80] = { 0 };
+                                            if (strftime(timetemp, sizeof(timetemp) / sizeof(timetemp[0]), "%c", t) == 0)
+                                            {
+                                                LogError("unable to strftime");
+                                                /*Codes_SRS_LOGGER_02_012: [If producing the JSON format or writing it to the file fails, then Logger_Receive shall fail and return.]*/
+                                                /*just return*/
+                                            }
+                                            else
+                                            {
+                                                /*getting the properties*/
+                                                /*getting the constmap*/
+                                                CONSTMAP_HANDLE originalProperties = Message_GetProperties(messageHandle); /*by contract this is never NULL*/
+                                                MAP_HANDLE propertiesAsMap = ConstMap_CloneWriteable(originalProperties); /*sigh, if only there'd be a constmap_tojson*/
+                                                if (propertiesAsMap == NULL)
+                                                {
+                                                    LogError("ConstMap_CloneWriteable failed");
+                                                }
+                                                else
+                                                {
+                                                    STRING_HANDLE jsonProperties = Map_ToJSON(propertiesAsMap);
+                                                    if (jsonProperties == NULL)
+                                                    {
+                                                        LogError("unable to Map_ToJSON");
+                                                    }
+                                                    else
+                                                    {
+                                                        /*getting the base64 encode of the message*/
+                                                        const CONSTBUFFER * content = Message_GetContent(messageHandle); /*by contract, this is never NULL*/
+                                                        STRING_HANDLE contentAsJSON = Base64_Encode_Bytes(content->buffer, content->size);
+                                                        if (contentAsJSON == NULL)
+                                                        {
+                                                            LogError("unable to Base64_Encode_Bytes");
+                                                        }
+                                                        else
+                                                        {
+                                                            STRING_HANDLE jsonToBeAppended = STRING_construct(",{\"time\":\"");
+                                                            if (jsonToBeAppended == NULL)
+                                                            {
+                                                                LogError("unable to STRING_construct");
+                                                            }
+                                                            else
+                                                            {
+
+                                                                if (!(
+                                                                    (STRING_concat(jsonToBeAppended, timetemp) == 0) &&
+                                                                    (STRING_concat(jsonToBeAppended, "\",\"properties\":") == 0) &&
+                                                                    (STRING_concat_with_STRING(jsonToBeAppended, jsonProperties) == 0) &&
+                                                                    (STRING_concat(jsonToBeAppended, ",\"content\":\"") == 0) &&
+                                                                    (STRING_concat_with_STRING(jsonToBeAppended, contentAsJSON) == 0) &&
+                                                                    (STRING_concat(jsonToBeAppended, "\"}]") == 0)
+                                                                    ))
+                                                                {
+                                                                    LogError("STRING concatenation error");
+                                                                }
+                                                                else
+                                                                {
+                                                                    if (addJSONString(handleData->fout, STRING_c_str(jsonToBeAppended)) != 0)
+                                                                    {
+                                                                        LogError("failed top add a json string to the output file");
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        /*all seems fine*/
+                                                                    }
+                                                                }
+                                                                STRING_delete(jsonToBeAppended);
+                                                            }
+                                                            STRING_delete(contentAsJSON);
+                                                        }
+                                                        STRING_delete(jsonProperties);
+                                                    }
+                                                    Map_Destroy(propertiesAsMap);
+                                                }
+                                                ConstMap_Destroy(originalProperties);
+                                            }
                                         }
                                     }
-                                    STRING_delete(jsonToBeAppended);
                                 }
-                                STRING_delete(contentAsJSON);
+
+                                nn_freemsg(buf);
                             }
-                            STRING_delete(jsonProperties);
                         }
-                        Map_Destroy(propertiesAsMap);
                     }
-                    ConstMap_Destroy(originalProperties);
+                    else
+                    {
+                        /*shall retry*/
+                    }
                 }
             }
         }
     }
-    /*Codes_SRS_LOGGER_02_013: [Logger_Receive shall return.]*/
+
+    return 0;
 }
 
 /*

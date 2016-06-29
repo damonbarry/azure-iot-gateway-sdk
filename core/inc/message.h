@@ -119,12 +119,12 @@ extern MESSAGE_HANDLE Message_CreateFromByteArray(const unsigned char* source, i
 *               to reproduce the message. The returned byte array needs to be deallocated by free function.
 *
 *	@param		messageHandle		A #MESSAGE_HANDLE. This parameter cannot be NULL.
-*               size                pointer to a int32_t that will receive the size of the byte array
+*               arraySize           pointer to a int32_t that will receive the size of the byte array
 *
 *	@return		A non-NULL const unsigned char* is returned when creating the serialized form succeeds. *size is updated to the size of the array
 *               A NULL value is returned when the array cannot be created.
 */
-extern const unsigned char* Message_ToByteArray(MESSAGE_HANDLE messageHandle, int32_t* size);
+extern const unsigned char* Message_ToByteArray(MESSAGE_HANDLE messageHandle, const char* prefix, int32_t* arraySize);
 
 
 /** @brief		Creates a new message from a @c CONSTBUFFER source and @c MAP_HANDLE.

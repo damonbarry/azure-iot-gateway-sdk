@@ -47,7 +47,7 @@ target_link_libraries(logger gateway)
 #this builds the Logger static library
 add_library(logger_static  ${logger_static_sources} ${logger_static_headers})
 target_compile_definitions(logger_static PRIVATE BUILD_MODULE_TYPE_STATIC)
-target_link_libraries(logger_static gateway)
+target_link_libraries(logger_static gateway nanomsg)
 
 #this builds the Logger_HL dynamic library (by default it uses Logger linked statically)
 add_library(logger_hl MODULE ${logger_hl_sources} ${logger_hl_headers})

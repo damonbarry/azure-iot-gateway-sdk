@@ -14,14 +14,19 @@
 #include "azure_c_shared_utility/iot_logging.h"
 #include "azure_c_shared_utility/lock.h"
 
+#include <nn.h>
+#include <pubsub.h>
+
 typedef struct HELLOWORLD_HANDLE_DATA_TAG
 {
     THREAD_HANDLE threadHandle;
     LOCK_HANDLE lockHandle;
     int stopThread;
-
+    int pubSocket;
 }HELLOWORLD_HANDLE_DATA;
 
+#define TOPIC_NAME "hello"
+#define TOPIC_ADDRESS "inproc://" TOPIC_NAME
 #define HELLOWORLD_MESSAGE "hello world"
 
 int helloWorldThread(void *param)
@@ -54,28 +59,46 @@ int helloWorldThread(void *param)
             }
             else
             {
-                while (1)
+                int32_t size = 0;
+                const unsigned char* msg = Message_ToByteArray(helloWorldMessage, TOPIC_NAME, &size);
+                Message_Destroy(helloWorldMessage);
+                if (msg == NULL)
                 {
-                    if (Lock(handleData->lockHandle) == LOCK_OK)
+                    LogError("unable to serialize \"hello world\" message");
+                }
+                else
+                {
+                    while (1)
                     {
-                        if (handleData->stopThread)
+                        if (Lock(handleData->lockHandle) == LOCK_OK)
                         {
-                            (void)Unlock(handleData->lockHandle);
-                            break; /*gets out of the thread*/
+                            if (handleData->stopThread)
+                            {
+                                (void)Unlock(handleData->lockHandle);
+                                break; /*gets out of the thread*/
+                            }
+                            else
+                            {
+                                int nbytes = nn_send(handleData->pubSocket, msg, size, 0);
+                                if (nbytes == -1 && errno == EAGAIN)
+                                {
+                                    LogError("unable to send \"hello world\" message");
+                                }
+                                else
+                                {
+                                    LogInfo("NN_SEND sent %d bytes", nbytes);
+                                }
+                                (void)Unlock(handleData->lockHandle);
+                            }
                         }
                         else
                         {
-                            //(void)MessageBus_Publish(handleData->busHandle, (MODULE_HANDLE)handleData, helloWorldMessage);
-                            (void)Unlock(handleData->lockHandle);
+                            /*shall retry*/
                         }
+                        (void)ThreadAPI_Sleep(5000); /*every 5 seconds*/
                     }
-                    else
-                    {
-                        /*shall retry*/
-                    }
-                    (void)ThreadAPI_Sleep(5000); /*every 5 seconds*/
+                    free((void*)msg);
                 }
-                Message_Destroy(helloWorldMessage);
             }
         }
     }
@@ -100,17 +123,40 @@ static MODULE_HANDLE HelloWorld_Create(const void* configuration)
         }
         else
         {
-            result->stopThread = 0;
-            if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
+            result->pubSocket = nn_socket(AF_SP, NN_PUB);
+            if (result->pubSocket == -1)
             {
-                LogError("failed to spawn a thread");
+                LogError("unable to create NN_PUB socket");
                 (void)Lock_Deinit(result->lockHandle);
                 free(result);
                 result = NULL;
             }
             else
             {
-                /*all is fine apparently*/
+                int endpointId = nn_bind(result->pubSocket, TOPIC_ADDRESS);
+                if (endpointId == -1) {
+                    LogError("unable to bind NN_PUB socket to endpoint %s", TOPIC_ADDRESS);
+                    (void)Lock_Deinit(result->lockHandle);
+                    nn_close(result->pubSocket);
+                    free(result);
+                    result = NULL;
+                }
+                else
+                {
+                    result->stopThread = 0;
+                    if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
+                    {
+                        LogError("failed to spawn a thread");
+                        (void)Lock_Deinit(result->lockHandle);
+                        nn_close(result->pubSocket);
+                        free(result);
+                        result = NULL;
+                    }
+                    else
+                    {
+                        /*all is fine apparently*/
+                    }
+                }
             }
         }
     }
@@ -139,12 +185,8 @@ static void HelloWorld_Destroy(MODULE_HANDLE module)
     }
     
     (void)Lock_Deinit(handleData->lockHandle);
+    nn_close(handleData->pubSocket);
     free(handleData);
-}
-
-static void HelloWorld_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messageHandle)
-{
-    /*no action, HelloWorld is not interested in any messages*/
 }
 
 static const MODULE_APIS HelloWorld_APIS_all =

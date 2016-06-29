@@ -39,6 +39,7 @@ set(hello_world_hl_static_headers
 
 include_directories(./inc)
 include_directories(${GW_INC})
+include_directories(./../../deps/nanomsg/src)
 
 #this builds the hello_world dynamic library
 add_library(hello_world MODULE ${hello_world_sources}  ${hello_world_headers})
@@ -48,7 +49,7 @@ add_dependencies(hello_world nanomsg)
 #this builds the hello_world static library
 add_library(hello_world_static  ${hello_world_static_sources} ${hello_world_static_headers})
 target_compile_definitions(hello_world_static PRIVATE BUILD_MODULE_TYPE_STATIC)
-target_link_libraries(hello_world_static gateway)
+target_link_libraries(hello_world_static gateway nanomsg)
 
 #this builds the hello_world dynamic library (by default it uses hello_world module linked statically)
 add_library(hello_world_hl MODULE ${hello_world_hl_sources} ${hello_world_hl_headers})
