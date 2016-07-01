@@ -23,10 +23,9 @@ typedef struct HELLOWORLD_HANDLE_DATA_TAG
     LOCK_HANDLE lockHandle;
     int stopThread;
     int pubSocket;
+    STRING_HANDLE topic;
 }HELLOWORLD_HANDLE_DATA;
 
-#define TOPIC_NAME "hello"
-#define TOPIC_ADDRESS "inproc://" TOPIC_NAME
 #define HELLOWORLD_MESSAGE "hello world"
 
 int helloWorldThread(void *param)
@@ -60,7 +59,7 @@ int helloWorldThread(void *param)
             else
             {
                 int32_t size = 0;
-                const unsigned char* msg = Message_ToByteArray(helloWorldMessage, TOPIC_NAME, &size);
+                const unsigned char* msg = Message_ToByteArray(helloWorldMessage, STRING_c_str(handleData->topic), &size);
                 Message_Destroy(helloWorldMessage);
                 if (msg == NULL)
                 {
@@ -107,46 +106,45 @@ int helloWorldThread(void *param)
 
 static MODULE_HANDLE HelloWorld_Create(const void* configuration)
 {
-    HELLOWORLD_HANDLE_DATA* result = malloc(sizeof(HELLOWORLD_HANDLE_DATA));
-    if(result == NULL)
+    HELLOWORLD_HANDLE_DATA* result;
+
+    if (configuration == NULL)
     {
-        LogError("unable to malloc");
+        LogError("invalid arg configuration=%p", configuration);
+        result = NULL;
     }
     else
     {
-        result->lockHandle = Lock_Init();
-        if(result->lockHandle == NULL)
+        HELLO_WORLD_CONFIG* config = configuration;
+        result = malloc(sizeof(HELLOWORLD_HANDLE_DATA));
+        if (result == NULL)
         {
-            LogError("unable to Lock_Init");
-            free(result);
-            result = NULL;
+            LogError("unable to malloc");
         }
         else
         {
-            result->pubSocket = nn_socket(AF_SP, NN_PUB);
-            if (result->pubSocket == -1)
+            result->lockHandle = Lock_Init();
+            if (result->lockHandle == NULL)
             {
-                LogError("unable to create NN_PUB socket");
-                (void)Lock_Deinit(result->lockHandle);
+                LogError("unable to Lock_Init");
                 free(result);
                 result = NULL;
             }
             else
             {
-                int endpointId = nn_bind(result->pubSocket, TOPIC_ADDRESS);
-                if (endpointId == -1) {
-                    LogError("unable to bind NN_PUB socket to endpoint %s", TOPIC_ADDRESS);
+                result->pubSocket = nn_socket(AF_SP, NN_PUB);
+                if (result->pubSocket == -1)
+                {
+                    LogError("unable to create NN_PUB socket");
                     (void)Lock_Deinit(result->lockHandle);
-                    nn_close(result->pubSocket);
                     free(result);
                     result = NULL;
                 }
                 else
                 {
-                    result->stopThread = 0;
-                    if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
-                    {
-                        LogError("failed to spawn a thread");
+                    int endpointId = nn_bind(result->pubSocket, config->brokerAddress);
+                    if (endpointId == -1) {
+                        LogError("unable to bind NN_PUB socket to endpoint %s", config->brokerAddress);
                         (void)Lock_Deinit(result->lockHandle);
                         nn_close(result->pubSocket);
                         free(result);
@@ -154,7 +152,20 @@ static MODULE_HANDLE HelloWorld_Create(const void* configuration)
                     }
                     else
                     {
-                        /*all is fine apparently*/
+                        result->stopThread = 0;
+                        result->topic = STRING_construct(config->brokerTopic);
+                        if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
+                        {
+                            LogError("failed to spawn a thread");
+                            (void)Lock_Deinit(result->lockHandle);
+                            nn_close(result->pubSocket);
+                            free(result);
+                            result = NULL;
+                        }
+                        else
+                        {
+                            /*all is fine apparently*/
+                        }
                     }
                 }
             }

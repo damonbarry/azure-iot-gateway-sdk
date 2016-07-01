@@ -11,17 +11,75 @@
 #include <stdio.h>
 #include "hello_world.h"
 #include "hello_world_hl.h"
+#include "parson.h"
 
 static MODULE_HANDLE HelloWorld_HL_Create(const void* configuration)
 {
     MODULE_HANDLE result;
-    if((result = MODULE_STATIC_GETAPIS(HELLOWORLD_MODULE)()->Module_Create(configuration))==NULL)
+    if (configuration == NULL)
     {
-        LogError("unable to Module_Create HELLOWORLD static");
+        LogError("NULL parameter detected configuration=%p", configuration);
+        result = NULL;
     }
     else
     {
-        /*all is fine, return as is*/
+        JSON_Value* json = json_parse_string((const char*)configuration);
+        if (json == NULL)
+        {
+            LogError("unable to json_parse_string");
+            result = NULL;
+        }
+        else
+        {
+            JSON_Object* obj = json_value_get_object(json);
+            if (obj == NULL)
+            {
+                LogError("unable to json_value_get_object");
+                result = NULL;
+            }
+            else
+            {
+                JSON_Object* broker = json_object_get_object(obj, "broker");
+                if (broker == NULL)
+                {
+                    LogError("json_object_get_object failed");
+                    result = NULL;
+                }
+                else
+                {
+                    const char* brokerAddress = json_object_get_string(broker, "address");
+                    if (brokerAddress == NULL)
+                    {
+                        LogError("json_object_get_string failed");
+                        result = NULL;
+                    }
+                    else
+                    {
+                        const char* brokerTopic = json_object_get_string(broker, "topic");
+                        if (brokerTopic == NULL)
+                        {
+                            LogError("json_object_get_string failed");
+                            result = NULL;
+                        }
+                        else
+                        {
+                            HELLO_WORLD_CONFIG config;
+                            config.brokerAddress = brokerAddress;
+                            config.brokerTopic = brokerTopic;
+
+                            if ((result = MODULE_STATIC_GETAPIS(HELLOWORLD_MODULE)()->Module_Create(&config)) == NULL)
+                            {
+                                LogError("unable to Module_Create HELLOWORLD static");
+                            }
+                            else
+                            {
+                                /*all is fine, return as is*/
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     return result;
 }

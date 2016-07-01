@@ -5,6 +5,7 @@
 #define HELLO_WORLD_H
 
 #include "module.h"
+#include "hello_world_common.h"
 
 #ifdef __cplusplus
 extern "C"

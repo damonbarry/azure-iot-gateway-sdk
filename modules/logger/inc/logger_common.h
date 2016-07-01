@@ -19,7 +19,10 @@ typedef struct LOGGER_CONFIG_TAG
         {
             const char* name;
         } loggerConfigFile;
-    }selectee;
+    } selectee;
+
+    const char* brokerAddress;
+    const char* brokerSubscription;
 }LOGGER_CONFIG; /*this needs to be passed to the Module_Create function*/
 
 #endif /*LOGGER_COMMON_H*/

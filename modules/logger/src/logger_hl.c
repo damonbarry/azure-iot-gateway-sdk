@@ -43,34 +43,63 @@ static MODULE_HANDLE Logger_HL_Create(const void* configuration)
             }
             else
             {
-                /*Codes_SRS_LOGGER_HL_02_012: [ If the JSON object does not contain a value named "filename" then Logger_HL_Create shall fail and return NULL. ]*/
-                const char* fileNameValue = json_object_get_string(obj, "filename");
-                if (fileNameValue == NULL)
+                JSON_Object* broker = json_object_get_object(obj, "broker");
+                if (broker == NULL)
                 {
-                    LogError("json_object_get_string failed");
+                    LogError("json_object_get_object failed");
                     result = NULL;
                 }
                 else
                 {
-                    /*fileNameValue is believed at this moment to be a string that might point to a filename on the system*/
-                    
-                    LOGGER_CONFIG config;
-                    config.selector = LOGGING_TO_FILE;
-                    config.selectee.loggerConfigFile.name = fileNameValue;
-                    
-                    /*Codes_SRS_LOGGER_HL_02_005: [ Logger_HL_Create shall pass the filename to Logger_Create. ]*/
-                    result = MODULE_STATIC_GETAPIS(LOGGER_MODULE)()->Module_Create(&config);
-
-                    if (result == NULL)
+                    const char* brokerAddress = json_object_get_string(broker, "address");
+                    if (brokerAddress == NULL)
                     {
-                        /*Codes_SRS_LOGGER_HL_02_007: [ If Logger_Create fails then Logger_HL_Create shall fail and return NULL. ]*/
-                        /*return result "as is" - that is - NULL*/
-                        LogError("unable to create Logger");
+                        LogError("json_object_get_string failed");
+                        result = NULL;
                     }
                     else
                     {
-                        /*Codes_SRS_LOGGER_HL_02_006: [ If Logger_Create succeeds then Logger_HL_Create shall succeed and return a non-NULL value. ]*/
-                        /*return result "as is" - that is - not NULL*/
+                        const char* brokerSubscription = json_object_get_string(broker, "subscription");
+                        if (brokerSubscription == NULL)
+                        {
+                            LogError("json_object_get_string failed");
+                            result = NULL;
+                        }
+                        else
+                        {
+                            /*Codes_SRS_LOGGER_HL_02_012: [ If the JSON object does not contain a value named "filename" then Logger_HL_Create shall fail and return NULL. ]*/
+                            const char* fileNameValue = json_object_get_string(obj, "filename");
+                            if (fileNameValue == NULL)
+                            {
+                                LogError("json_object_get_string failed");
+                                result = NULL;
+                            }
+                            else
+                            {
+                                /*fileNameValue is believed at this moment to be a string that might point to a filename on the system*/
+
+                                LOGGER_CONFIG config;
+                                config.selector = LOGGING_TO_FILE;
+                                config.selectee.loggerConfigFile.name = fileNameValue;
+                                config.brokerAddress = brokerAddress;
+                                config.brokerSubscription = brokerSubscription;
+
+                                /*Codes_SRS_LOGGER_HL_02_005: [ Logger_HL_Create shall pass the filename to Logger_Create. ]*/
+                                result = MODULE_STATIC_GETAPIS(LOGGER_MODULE)()->Module_Create(&config);
+
+                                if (result == NULL)
+                                {
+                                    /*Codes_SRS_LOGGER_HL_02_007: [ If Logger_Create fails then Logger_HL_Create shall fail and return NULL. ]*/
+                                    /*return result "as is" - that is - NULL*/
+                                    LogError("unable to create Logger");
+                                }
+                                else
+                                {
+                                    /*Codes_SRS_LOGGER_HL_02_006: [ If Logger_Create succeeds then Logger_HL_Create shall succeed and return a non-NULL value. ]*/
+                                    /*return result "as is" - that is - not NULL*/
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -26,15 +26,14 @@
 #include <nn.h>
 #include <pubsub.h>
 
-#define TOPIC_NAME "hello"
-#define TOPIC_ADDRESS "inproc://" TOPIC_NAME
-
 typedef struct LOGGER_HANDLE_DATA_TAG
 {
     FILE* fout;
     THREAD_HANDLE threadHandle;
     LOCK_HANDLE lockHandle;
     int stopThread;
+    STRING_HANDLE brokerAddress;
+    STRING_HANDLE subscription;
 }LOGGER_HANDLE_DATA;
 
 /*this function adds a JSON object to the output*/
@@ -271,6 +270,8 @@ static MODULE_HANDLE Logger_Create(const void* configuration)
                                 else
                                 {
                                     result->stopThread = 0;
+                                    result->brokerAddress = STRING_construct(config->brokerAddress);
+                                    result->subscription = STRING_construct(config->brokerSubscription);
                                     if (ThreadAPI_Create(&result->threadHandle, loggerThread, result) != THREADAPI_OK)
                                     {
                                         LogError("failed to spawn a thread");
@@ -350,16 +351,16 @@ int loggerThread(void *param)
     }
     else
     {
-        if (nn_setsockopt(subSocket, NN_SUB, NN_SUB_SUBSCRIBE, "", 0) == -1)
+        if (nn_setsockopt(subSocket, NN_SUB, NN_SUB_SUBSCRIBE, STRING_c_str(handleData->subscription), 0) == -1)
         {
             LogError("unable to subscribe to topic");
             nn_close(subSocket);
         }
         else
         {
-            int endpointId = nn_connect(subSocket, TOPIC_ADDRESS);
+            int endpointId = nn_connect(subSocket, STRING_c_str(handleData->brokerAddress));
             if (endpointId == -1) {
-                LogError("unable to connect NN_SUB socket to endpoint %s", TOPIC_ADDRESS);
+                LogError("unable to connect NN_SUB socket to endpoint %s", STRING_c_str(handleData->brokerAddress));
                 nn_close(subSocket);
             }
             else
