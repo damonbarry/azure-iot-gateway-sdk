@@ -58,46 +58,71 @@ int helloWorldThread(void *param)
             }
             else
             {
-                int32_t size = 0;
-                const unsigned char* msg = Message_ToByteArray(helloWorldMessage, STRING_c_str(handleData->topic), &size);
-                Message_Destroy(helloWorldMessage);
-                if (msg == NULL)
+                int32_t prefixSize = STRING_length(handleData->topic) + 1;
+                int32_t size = Message_ToByteArray(helloWorldMessage, NULL, 0);
+                if (size == -1)
                 {
-                    LogError("unable to serialize \"hello world\" message");
+                    LogError("Unable to determine message size");
                 }
                 else
                 {
                     while (1)
                     {
-                        if (Lock(handleData->lockHandle) == LOCK_OK)
+                        uint8_t* buf = nn_allocmsg(size + prefixSize, 0);
+                        /*
+                        Note: We'll use the zero-copy form of nn_send below,
+                          so nanomsg will take ownership of buf. We aren't
+                          responsible for freeing it.
+                        */
+                        if (buf == NULL)
                         {
-                            if (handleData->stopThread)
-                            {
-                                (void)Unlock(handleData->lockHandle);
-                                break; /*gets out of the thread*/
-                            }
-                            else
-                            {
-                                int nbytes = nn_send(handleData->pubSocket, msg, size, 0);
-                                if (nbytes == -1 && errno == EAGAIN)
-                                {
-                                    LogError("unable to send \"hello world\" message");
-                                }
-                                else
-                                {
-                                    LogInfo("NN_SEND sent %d bytes", nbytes);
-                                }
-                                (void)Unlock(handleData->lockHandle);
-                            }
+                            LogError("Unable to allocate buffer");
                         }
                         else
                         {
-                            /*shall retry*/
+                            strcpy(buf, STRING_c_str(handleData->topic));
+                            if (Message_ToByteArray(helloWorldMessage, buf + prefixSize, size) != size)
+                            {
+                                LogError("unable to serialize \"hello world\" message");
+                                break; /*unexpected, so exit*/
+                            }
+                            else
+                            {
+                                if (Lock(handleData->lockHandle) == LOCK_OK)
+                                {
+                                    if (handleData->stopThread)
+                                    {
+                                        (void)Unlock(handleData->lockHandle);
+                                        break; /*gets out of the thread*/
+                                    }
+                                    else
+                                    {
+                                        int nbytes = nn_send(handleData->pubSocket, &buf, NN_MSG, 0);
+
+                                        (void)Unlock(handleData->lockHandle);
+
+                                        if (nbytes == -1 && errno == EAGAIN)
+                                        {
+                                            LogError("unable to send \"hello world\" message");
+                                        }
+                                        else
+                                        {
+                                            LogInfo("NN_SEND sent %d bytes", nbytes);
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    /*shall retry*/
+                                }
+
+                                (void)ThreadAPI_Sleep(5000); /*every 5 seconds*/
+                            }
                         }
-                        (void)ThreadAPI_Sleep(5000); /*every 5 seconds*/
                     }
-                    free((void*)msg);
                 }
+
+                Message_Destroy(helloWorldMessage);
             }
         }
     }
@@ -115,7 +140,7 @@ static MODULE_HANDLE HelloWorld_Create(const void* configuration)
     }
     else
     {
-        HELLO_WORLD_CONFIG* config = configuration;
+        const HELLO_WORLD_CONFIG* config = configuration;
         result = malloc(sizeof(HELLOWORLD_HANDLE_DATA));
         if (result == NULL)
         {

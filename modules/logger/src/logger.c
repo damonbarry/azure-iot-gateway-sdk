@@ -379,7 +379,7 @@ int loggerThread(void *param)
                         {
                             (void)Unlock(handleData->lockHandle);
 
-                            void *buf = NULL;
+                            uint8_t* buf = NULL;
                             int nbytes = nn_recv(subSocket, &buf, NN_MSG, 0);
                             if (nbytes == -1)
                             {
@@ -389,7 +389,10 @@ int loggerThread(void *param)
                             {
                                 LogInfo("RECV [%d bytes] : %.5s", nbytes, (char*)buf);
 
-                                MESSAGE_HANDLE messageHandle = Message_CreateFromByteArray(buf, nbytes);
+                                /*skip message prefix (topic), which is a null-terminated string*/
+                                const int32_t prefixSize = strlen(buf) + 1;
+
+                                MESSAGE_HANDLE messageHandle = Message_CreateFromByteArray(buf + prefixSize, nbytes - prefixSize);
                                 if (messageHandle == NULL)
                                 {
                                     LogError("error in Message_CreateFromByteArray");
