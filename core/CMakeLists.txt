@@ -46,6 +46,7 @@ endfunction(includeHttp)
 
 
 set(gateway_c_sources
+	./src/broker.c
 	./src/message.c
 	./src/module_loader.c
 	./src/gateway_ll.c
@@ -54,6 +55,7 @@ set(gateway_c_sources
 )
 
 set(gateway_h_sources
+	./inc/broker.h
 	./inc/message.h
 	./inc/module.h
 	./inc/gateway_ll.h

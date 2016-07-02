@@ -14,15 +14,14 @@
 #include "azure_c_shared_utility/iot_logging.h"
 #include "azure_c_shared_utility/lock.h"
 
-#include <nn.h>
-#include <pubsub.h>
+#include "broker.h"
 
 typedef struct HELLOWORLD_HANDLE_DATA_TAG
 {
     THREAD_HANDLE threadHandle;
     LOCK_HANDLE lockHandle;
     int stopThread;
-    int pubSocket;
+    BROKER_PUB_HANDLE pubHandle;
     STRING_HANDLE topic;
 }HELLOWORLD_HANDLE_DATA;
 
@@ -34,98 +33,65 @@ int helloWorldThread(void *param)
 
     MESSAGE_CONFIG msgConfig;
     MAP_HANDLE propertiesMap = Map_Create(NULL);
-    if(propertiesMap == NULL)
+    if (propertiesMap == NULL)
     {
         LogError("unable to create a Map");
     }
+    else if (Map_AddOrUpdate(propertiesMap, "helloWorld", "from Azure IoT Gateway SDK simple sample!") != MAP_OK)
+    {
+        LogError("unable to Map_AddOrUpdate");
+    }
     else
     {
-        if (Map_AddOrUpdate(propertiesMap, "helloWorld", "from Azure IoT Gateway SDK simple sample!") != MAP_OK)
+        msgConfig.size = strlen(HELLOWORLD_MESSAGE);
+        msgConfig.source = HELLOWORLD_MESSAGE;
+    
+        msgConfig.sourceProperties = propertiesMap;
+
+        MESSAGE_HANDLE helloWorldMessage = Message_Create(&msgConfig);
+        if (helloWorldMessage == NULL)
         {
-            LogError("unable to Map_AddOrUpdate");
+            LogError("unable to create \"hello world\" message");
         }
         else
         {
-            msgConfig.size = strlen(HELLOWORLD_MESSAGE);
-            msgConfig.source = HELLOWORLD_MESSAGE;
-    
-            msgConfig.sourceProperties = propertiesMap;
-
-            MESSAGE_HANDLE helloWorldMessage = Message_Create(&msgConfig);
-            if (helloWorldMessage == NULL)
+            int32_t prefixSize = STRING_length(handleData->topic) + 1;
+            int32_t size = Message_ToByteArray(helloWorldMessage, NULL, 0);
+            if (size == -1)
             {
-                LogError("unable to create \"hello world\" message");
+                LogError("Unable to determine message size");
             }
             else
             {
-                int32_t prefixSize = STRING_length(handleData->topic) + 1;
-                int32_t size = Message_ToByteArray(helloWorldMessage, NULL, 0);
-                if (size == -1)
+                while (1)
                 {
-                    LogError("Unable to determine message size");
-                }
-                else
-                {
-                    while (1)
+                    if (Lock(handleData->lockHandle) == LOCK_OK)
                     {
-                        uint8_t* buf = nn_allocmsg(size + prefixSize, 0);
-                        /*
-                        Note: We'll use the zero-copy form of nn_send below,
-                          so nanomsg will take ownership of buf. We aren't
-                          responsible for freeing it.
-                        */
-                        if (buf == NULL)
+                        if (handleData->stopThread)
                         {
-                            LogError("Unable to allocate buffer");
+                            (void)Unlock(handleData->lockHandle);
+                            break; /*gets out of the thread*/
                         }
-                        else
+                        else if (Broker_Publish(handleData->pubHandle, STRING_c_str(handleData->topic), helloWorldMessage, size) != BROKER_RESULT_OK)
                         {
-                            strcpy(buf, STRING_c_str(handleData->topic));
-                            if (Message_ToByteArray(helloWorldMessage, buf + prefixSize, size) != size)
-                            {
-                                LogError("unable to serialize \"hello world\" message");
-                                break; /*unexpected, so exit*/
-                            }
-                            else
-                            {
-                                if (Lock(handleData->lockHandle) == LOCK_OK)
-                                {
-                                    if (handleData->stopThread)
-                                    {
-                                        (void)Unlock(handleData->lockHandle);
-                                        break; /*gets out of the thread*/
-                                    }
-                                    else
-                                    {
-                                        int nbytes = nn_send(handleData->pubSocket, &buf, NN_MSG, 0);
-
-                                        (void)Unlock(handleData->lockHandle);
-
-                                        if (nbytes == -1 && errno == EAGAIN)
-                                        {
-                                            LogError("unable to send \"hello world\" message");
-                                        }
-                                        else
-                                        {
-                                            LogInfo("NN_SEND sent %d bytes", nbytes);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    /*shall retry*/
-                                }
-
-                                (void)ThreadAPI_Sleep(5000); /*every 5 seconds*/
-                            }
+                            LogError("unable to send \"hello world\" message");
                         }
+
+                        (void)Unlock(handleData->lockHandle);
                     }
-                }
+                    else
+                    {
+                        /*shall retry*/
+                    }
 
-                Message_Destroy(helloWorldMessage);
+                    (void)ThreadAPI_Sleep(3000); /*every 3 seconds*/
+                }
             }
+
+            Message_Destroy(helloWorldMessage);
         }
     }
+
     return 0;
 }
 
@@ -157,40 +123,29 @@ static MODULE_HANDLE HelloWorld_Create(const void* configuration)
             }
             else
             {
-                result->pubSocket = nn_socket(AF_SP, NN_PUB);
-                if (result->pubSocket == -1)
+                result->pubHandle = Broker_Create(config->brokerAddress);
+                if (result->pubHandle == NULL)
                 {
-                    LogError("unable to create NN_PUB socket");
+                    LogError("unable to create broker");
                     (void)Lock_Deinit(result->lockHandle);
                     free(result);
                     result = NULL;
                 }
                 else
                 {
-                    int endpointId = nn_bind(result->pubSocket, config->brokerAddress);
-                    if (endpointId == -1) {
-                        LogError("unable to bind NN_PUB socket to endpoint %s", config->brokerAddress);
+                    result->stopThread = 0;
+                    result->topic = STRING_construct(config->brokerTopic);
+                    if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
+                    {
+                        LogError("failed to spawn a thread");
                         (void)Lock_Deinit(result->lockHandle);
-                        nn_close(result->pubSocket);
+                        Broker_Destroy(result->pubHandle);
                         free(result);
                         result = NULL;
                     }
                     else
                     {
-                        result->stopThread = 0;
-                        result->topic = STRING_construct(config->brokerTopic);
-                        if (ThreadAPI_Create(&result->threadHandle, helloWorldThread, result) != THREADAPI_OK)
-                        {
-                            LogError("failed to spawn a thread");
-                            (void)Lock_Deinit(result->lockHandle);
-                            nn_close(result->pubSocket);
-                            free(result);
-                            result = NULL;
-                        }
-                        else
-                        {
-                            /*all is fine apparently*/
-                        }
+                        /*all is fine*/
                     }
                 }
             }
@@ -221,7 +176,7 @@ static void HelloWorld_Destroy(MODULE_HANDLE module)
     }
     
     (void)Lock_Deinit(handleData->lockHandle);
-    nn_close(handleData->pubSocket);
+    (void)Broker_Destroy(handleData->pubHandle);
     free(handleData);
 }
 
