@@ -18,7 +18,6 @@ typedef struct
 typedef struct
 {
     int subSocket;
-    STRING_HANDLE brokerAddress;
     STRING_HANDLE subscription;
 
     THREAD_HANDLE threadHandle;
@@ -137,7 +136,7 @@ void Broker_Destroy(BROKER_PUB_HANDLE publisher)
 
     if (data != NULL)
     {
-        nn_close(data->pubSocket);
+        (void)nn_close(data->pubSocket);
         free(data);
     }
 }
@@ -194,7 +193,6 @@ static int subscriberThread(void *param)
             if (data->stopThread)
             {
                 (void)Unlock(data->lockHandle);
-                nn_close(data->subSocket);
                 break; /*gets out of the thread*/
             }
             else
@@ -316,5 +314,14 @@ void Broker_Unsubscribe(BROKER_SUB_HANDLE subscriber)
         }
 
         (void)Lock_Deinit(data->lockHandle);
+        /* TODO
+           There should be a separate `void Broker_Disconnect(BROKER_SUB_HANDLE subscriber)` function
+            that tears down the stuff below.
+           Also, Broker_Subscribe/_Unsubscribe should deal with SUBSCRIPTION_HANDLEs, and BROKER_SUB_HANDLE
+            should keep a vector of them.
+        */ 
+        (void)nn_close(data->subSocket);
+        STRING_delete(data->subscription);
+        free(subscriber);
     }
 }
