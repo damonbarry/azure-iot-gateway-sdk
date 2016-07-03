@@ -30,6 +30,13 @@ DEFINE_ENUM(BROKER_RESULT, BROKER_RESULT_VALUES);
 
 typedef void(*On_Message_Received)(MESSAGE_HANDLE message, void* context);
 
+/* TODO
+   Currently, publishers create brokers, and subscribers connect to them. This
+   supports the scenario where there is one publisher to many subscribers. We
+   also need to be able to support the one-subscriber-to-many-publishers
+   scenario--in this case the subscriber creates the broker and the publishers
+   connect to it.
+*/
 BROKER_PUB_HANDLE Broker_Create(const char* address);
 BROKER_RESULT Broker_Publish(BROKER_PUB_HANDLE publisher, const char* topic, MESSAGE_HANDLE message, int32_t msgSizeHint);
 void Broker_Destroy(BROKER_PUB_HANDLE publisher);

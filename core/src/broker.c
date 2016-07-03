@@ -200,6 +200,11 @@ static int subscriberThread(void *param)
                 (void)Unlock(data->lockHandle);
 
                 uint8_t* buf = NULL;
+                /* TODO
+                   If this socket never receives anything it will block indefinitely.
+                   We need a way to exit the thread gracefully in that case (e.g. use
+                   select()).
+                */
                 int nbytes = nn_recv(data->subSocket, &buf, NN_MSG, 0);
                 if (nbytes == -1)
                 {
