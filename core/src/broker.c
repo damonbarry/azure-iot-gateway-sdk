@@ -266,7 +266,7 @@ BROKER_RESULT Broker_Subscribe(BROKER_SUB_HANDLE subscriber, const char* topic, 
                 LogError("unable to copy topic name");
                 result = BROKER_RESULT_ERROR;
             }
-            else if (nn_setsockopt(data->subSocket, NN_SUB, NN_SUB_SUBSCRIBE, topic, 0) == -1)
+            else if (nn_setsockopt(data->subSocket, NN_SUB, NN_SUB_SUBSCRIBE, topic, strlen(topic)) == -1)
             {
                 LogError("unable to subscribe to topic");
                 (void)Lock_Deinit(data->lockHandle);
