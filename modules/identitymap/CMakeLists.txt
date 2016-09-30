@@ -37,7 +37,7 @@ set(identity_map_hl_static_headers
 )
 
 include_directories(./inc)
-include_directories(${GW_INC})
+include_directories(${GW_INC} ${SERIALIZER_INC_FOLDER})
 
 #this builds the identity_map dynamic library
 add_library(identity_map MODULE ${identity_map_sources}  ${identity_map_headers})
@@ -46,7 +46,7 @@ target_link_libraries(identity_map gateway)
 #this builds the identity_map static library
 add_library(identity_map_static STATIC ${identity_map_static_sources} ${identity_map_static_headers})
 target_compile_definitions(identity_map_static PRIVATE BUILD_MODULE_TYPE_STATIC)
-target_link_libraries(identity_map_static gateway)
+target_link_libraries(identity_map_static gateway serializer)
 
 #this builds the identity_map hl dynamic library (by default it uses identity_map module linked statically)
 add_library(identity_map_hl MODULE ${identity_map_hl_sources} ${identity_map_hl_headers})

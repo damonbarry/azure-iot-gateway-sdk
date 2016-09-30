@@ -21,6 +21,43 @@
 #include "azure_c_shared_utility/xlogging.h"
 #include "azure_c_shared_utility/vector.h"
 
+#include "schemalib.h"
+#include "serializer.h"
+#include "schemaserializer.h"
+
+// Define the Model
+BEGIN_NAMESPACE(Contoso);
+
+DECLARE_STRUCT(SystemProperties,
+    ascii_char_ptr, DeviceID,
+    _Bool, Enabled
+);
+
+DECLARE_STRUCT(DeviceProperties,
+ascii_char_ptr, DeviceID,
+_Bool, HubEnabledState
+);
+
+DECLARE_MODEL(Thermostat,
+
+    /* Event data (temperature, external temperature and humidity) */
+    WITH_DATA(int, Temperature),
+    WITH_DATA(int, ExternalTemperature),
+    WITH_DATA(int, Humidity),
+    WITH_DATA(ascii_char_ptr, DeviceId),
+
+    /* Device Info - This is command metadata + some extra fields */
+    WITH_DATA(ascii_char_ptr, ObjectType),
+    WITH_DATA(_Bool, IsSimulatedDevice),
+    WITH_DATA(ascii_char_ptr, Version),
+    WITH_DATA(DeviceProperties, DeviceProperties),
+    WITH_DATA(ascii_char_ptr_no_quotes, Commands)
+);
+
+END_NAMESPACE(Contoso);
+
+Thermostat* thermostat = NULL;
+
 typedef struct IDENTITY_MAP_DATA_TAG
 {
 	BROKER_HANDLE broker;
@@ -244,91 +281,106 @@ static MODULE_HANDLE IdentityMap_Create(BROKER_HANDLE broker, const void* config
 	}
 	else
 	{
-		VECTOR_HANDLE mappingVector = (VECTOR_HANDLE)configuration;
-		if (IdentityMap_ValidateConfig(mappingVector) == false)
-		{
-			LogError("unable to validate mapping table");
-			result = NULL;
-		}
-		else
-		{
-			result = (IDENTITY_MAP_DATA*)malloc(sizeof(IDENTITY_MAP_DATA));
-			if (result == NULL)
+		if (serializer_init(NULL) != SERIALIZER_OK)
+        {
+            printf("Failed on serializer_init\r\n");
+        }
+        else
+        {
+			thermostat = CREATE_MODEL_INSTANCE(Contoso, Thermostat);
+			if (thermostat == NULL)
 			{
-				/*Codes_SRS_IDMAP_17_010: [If IdentityMap_Create fails to allocate a new IDENTITY_MAP_DATA structure, then this function shall fail, and return NULL.]*/
-				LogError("Could not Allocate Module");
+				(void)printf("Failed on CREATE_MODEL_INSTANCE\r\n");
 			}
 			else
 			{
-				size_t mappingSize = VECTOR_size(mappingVector);
-				/* validation ensures the vector is greater than zero */
-				result->macToDevIdArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
-				if (result->macToDevIdArray == NULL)
+				VECTOR_HANDLE mappingVector = (VECTOR_HANDLE)configuration;
+				if (IdentityMap_ValidateConfig(mappingVector) == false)
 				{
-					/*Codes_SRS_IDMAP_17_011: [If IdentityMap_Create fails to create memory for the macToDeviceArray, then this function shall fail and return NULL.*/
-					LogError("Could not allocate mac to device mapping table");
-					free(result);
+					LogError("unable to validate mapping table");
 					result = NULL;
 				}
 				else
 				{
-					result->devIdToMacArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
-					if (result->devIdToMacArray == NULL)
+					result = (IDENTITY_MAP_DATA*)malloc(sizeof(IDENTITY_MAP_DATA));
+					if (result == NULL)
 					{
-						/*Codes_SRS_IDMAP_17_042: [ If IdentityMap_Create fails to create memory for the deviceToMacArray, then this function shall fail and return NULL. */
-						LogError("Could not allocate devicee to mac mapping table");
-						free(result->macToDevIdArray);
-						free(result);
-						result = NULL;
+						/*Codes_SRS_IDMAP_17_010: [If IdentityMap_Create fails to allocate a new IDENTITY_MAP_DATA structure, then this function shall fail, and return NULL.]*/
+						LogError("Could not Allocate Module");
 					}
 					else
 					{
-
-						size_t index;
-						size_t failureIndex = mappingSize;
-						for (index = 0; index < mappingSize; index++)
+						size_t mappingSize = VECTOR_size(mappingVector);
+						/* validation ensures the vector is greater than zero */
+						result->macToDevIdArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
+						if (result->macToDevIdArray == NULL)
 						{
-							IDENTITY_MAP_CONFIG * element = (IDENTITY_MAP_CONFIG *)VECTOR_element(mappingVector, index);
-							IDENTITY_MAP_CONFIG * dest = &(result->macToDevIdArray[index]);
-							IDENTITYMAP_RESULT copyResult;
-							copyResult = IdentityMapConfig_CopyDeep(dest, element);
-							if (copyResult != IDENTITYMAP_OK)
-							{
-								failureIndex = index;
-								break;
-							}
-							dest = &(result->devIdToMacArray[index]);
-							copyResult = IdentityMapConfig_CopyDeep(dest, element);
-							if (copyResult != IDENTITYMAP_OK)
-							{
-								IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
-								failureIndex = index;
-								break;
-							}
-						}
-						if (failureIndex < mappingSize)
-						{
-							/*Codes_SRS_IDMAP_17_012: [If IdentityMap_Create fails to add a MAC address triplet to the macToDeviceArray, then this function shall fail, release all resources, and return NULL.]*/
-							/*Codes_SRS_IDMAP_17_043: [ If IdentityMap_Create fails to add a MAC address triplet to the deviceToMacArray, then this function shall fail, release all resources, and return NULL. */
-							for (index = 0; index < failureIndex; index++)
-							{
-								IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
-								IdentityMapConfig_Free(&(result->devIdToMacArray[index]));
-							}
-							free(result->macToDevIdArray);
-							free(result->devIdToMacArray);
+							/*Codes_SRS_IDMAP_17_011: [If IdentityMap_Create fails to create memory for the macToDeviceArray, then this function shall fail and return NULL.*/
+							LogError("Could not allocate mac to device mapping table");
 							free(result);
 							result = NULL;
 						}
 						else
 						{
-							/*Codes_SRS_IDMAP_17_003: [Upon success, this function shall return a valid pointer to a MODULE_HANDLE.]*/
-							qsort(result->macToDevIdArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
-								IdentityMapConfig_MacCompare);
-							qsort(result->devIdToMacArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
-								IdentityMapConfig_IdCompare);
-							result->mappingSize = mappingSize;
-							result->broker = broker;
+							result->devIdToMacArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
+							if (result->devIdToMacArray == NULL)
+							{
+								/*Codes_SRS_IDMAP_17_042: [ If IdentityMap_Create fails to create memory for the deviceToMacArray, then this function shall fail and return NULL. */
+								LogError("Could not allocate devicee to mac mapping table");
+								free(result->macToDevIdArray);
+								free(result);
+								result = NULL;
+							}
+							else
+							{
+
+								size_t index;
+								size_t failureIndex = mappingSize;
+								for (index = 0; index < mappingSize; index++)
+								{
+									IDENTITY_MAP_CONFIG * element = (IDENTITY_MAP_CONFIG *)VECTOR_element(mappingVector, index);
+									IDENTITY_MAP_CONFIG * dest = &(result->macToDevIdArray[index]);
+									IDENTITYMAP_RESULT copyResult;
+									copyResult = IdentityMapConfig_CopyDeep(dest, element);
+									if (copyResult != IDENTITYMAP_OK)
+									{
+										failureIndex = index;
+										break;
+									}
+									dest = &(result->devIdToMacArray[index]);
+									copyResult = IdentityMapConfig_CopyDeep(dest, element);
+									if (copyResult != IDENTITYMAP_OK)
+									{
+										IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
+										failureIndex = index;
+										break;
+									}
+								}
+								if (failureIndex < mappingSize)
+								{
+									/*Codes_SRS_IDMAP_17_012: [If IdentityMap_Create fails to add a MAC address triplet to the macToDeviceArray, then this function shall fail, release all resources, and return NULL.]*/
+									/*Codes_SRS_IDMAP_17_043: [ If IdentityMap_Create fails to add a MAC address triplet to the deviceToMacArray, then this function shall fail, release all resources, and return NULL. */
+									for (index = 0; index < failureIndex; index++)
+									{
+										IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
+										IdentityMapConfig_Free(&(result->devIdToMacArray[index]));
+									}
+									free(result->macToDevIdArray);
+									free(result->devIdToMacArray);
+									free(result);
+									result = NULL;
+								}
+								else
+								{
+									/*Codes_SRS_IDMAP_17_003: [Upon success, this function shall return a valid pointer to a MODULE_HANDLE.]*/
+									qsort(result->macToDevIdArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
+										IdentityMapConfig_MacCompare);
+									qsort(result->devIdToMacArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
+										IdentityMapConfig_IdCompare);
+									result->mappingSize = mappingSize;
+									result->broker = broker;
+								}
+							}
 						}
 					}
 				}
@@ -357,6 +409,11 @@ static void IdentityMap_Destroy(MODULE_HANDLE moduleHandle)
 		free(idModule->devIdToMacArray);
 		free(idModule);
 	}
+
+    if (thermostat != NULL)
+    {
+        DESTROY_MODEL_INSTANCE(thermostat);
+    }
 }
 
 static void publish_with_new_properties(MAP_HANDLE newProperties, MESSAGE_HANDLE messageHandle, IDENTITY_MAP_DATA * idModule)
@@ -396,6 +453,35 @@ static void publish_with_new_properties(MAP_HANDLE newProperties, MESSAGE_HANDLE
 		/*Codes_SRS_IDMAP_17_039: [IdentityMap_Receive will destroy all resources it created.]*/
 		CONSTBUFFER_Destroy(content);
 	}
+}
+
+static void sensortag_temp_convert(
+    uint16_t rawAmbTemp,
+    uint16_t rawObjTemp,
+    float *tAmb,
+    float *tObj
+)
+{
+    const float SCALE_LSB = 0.03125;
+    float t;
+    int it;
+
+    it = (int)((rawObjTemp) >> 2);
+    t = ((float)(it)) * SCALE_LSB;
+    *tObj = t;
+
+    it = (int)((rawAmbTemp) >> 2);
+    t = (float)it;
+    *tAmb = t * SCALE_LSB;
+}
+
+static void get_temperature(const CONSTBUFFER* buffer, float* ambient, float* object)
+{
+    if (buffer->size == 4)
+    {
+        uint16_t* temps = (uint16_t *)buffer->buffer;
+        sensortag_temp_convert(temps[0], temps[1], ambient, object);
+    }
 }
 
 /*
@@ -449,6 +535,56 @@ static void IdentityMap_RepublishD2C(
 			}
 			else
 			{
+				unsigned char* buffer = NULL;
+				size_t bufferSize = 0;
+
+				const char* characteristic_uuid = ConstMap_GetValue(properties, GW_CHARACTERISTIC_UUID_PROPERTY);
+				if (characteristic_uuid != NULL
+					&& strcmp(characteristic_uuid, "F000AA01-0451-4000-B000-000000000000") == 0) // temperature
+				{
+					float ambient, object;
+
+					CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
+					get_temperature(CONSTBUFFER_GetContent(content), &ambient, &object);
+
+					thermostat->DeviceId = match->deviceId;
+					thermostat->Temperature = (int)ambient;
+					thermostat->ExternalTemperature = (int)object; // we'll pretend object temp is external temp
+
+					if (SERIALIZE(&buffer, &bufferSize, thermostat->DeviceId,
+						thermostat->Temperature, thermostat->ExternalTemperature) != IOT_AGENT_OK)
+					{
+						LogError("Failed to serialize temperature");
+					}
+					else if (buffer != NULL && bufferSize != 0)
+					{
+						CONSTBUFFER_HANDLE newContent = CONSTBUFFER_Create(buffer, bufferSize);
+						free(buffer);
+						if (!newContent)
+						{
+							LogError("Could not create new message content");
+						}
+						else
+						{
+							MESSAGE_BUFFER_CONFIG newMessageConfig =
+							{
+								newContent,
+								newProperties
+							};
+
+							MESSAGE_HANDLE newMessage = Message_CreateFromBuffer(&newMessageConfig);
+							if (newMessage == NULL)
+							{
+								LogError("Could not create new message to publish");
+							}
+							else
+							{
+								messageHandle = newMessage;
+							}
+						}
+					}
+				}
+
 				publish_with_new_properties(newProperties, messageHandle, idModule);
 			}
 			Map_Destroy(newProperties);
