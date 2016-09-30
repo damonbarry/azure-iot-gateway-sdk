@@ -28,6 +28,7 @@ typedef void(*MESSAGE_PRINTER)(const char* name, const char* timestamp, const CO
 
 static void print_string(const char* name, const char* timestamp, const CONSTBUFFER* buffer);
 static void print_temperature(const char* name, const char* timestamp, const CONSTBUFFER* buffer);
+static void print_humidity(const char* name, const char* timestamp, const CONSTBUFFER* buffer);
 static void print_default(const char* name, const char* timestamp, const CONSTBUFFER* buffer);
 
 typedef struct DIPATCH_ENTRY_TAG
@@ -79,6 +80,11 @@ DIPATCH_ENTRY g_dispatch_entries[] =
         "Temperature",
         "F000AA01-0451-4000-B000-000000000000",
         print_temperature
+    },
+    {
+        "Humidity",
+        "F000AA21-0451-4000-B000-000000000000",
+        print_humidity
     }
 };
 
@@ -193,6 +199,17 @@ static void sensortag_temp_convert(
     *tAmb = t * SCALE_LSB;
 }
 
+static void sensortag_humidity_convert(
+    uint16_t rawTemp,
+    uint16_t rawHum,
+    float *temp,
+    float *hum
+)
+{
+  *temp = ((double)(int16_t)rawTemp / 65536)*165 - 40;
+  *hum = ((double)rawHum / 65536)*100;
+}
+
 static void print_temperature(const char* name, const char* timestamp, const CONSTBUFFER* buffer)
 {
     if (buffer->size == 4)
@@ -205,6 +222,22 @@ static void print_temperature(const char* name, const char* timestamp, const CON
             name,
             ambient,
             object
+        );
+    }
+}
+
+static void print_humidity(const char* name, const char* timestamp, const CONSTBUFFER* buffer)
+{
+    if (buffer->size == 4)
+    {
+        uint16_t* vals = (uint16_t *)buffer->buffer;
+        float temp, hum;
+        sensortag_humidity_convert(vals[0], vals[1], &temp, &hum);
+        printf("[%s] %s: (%f, %f)\r\n",
+            timestamp,
+            name,
+            temp,
+            hum
         );
     }
 }

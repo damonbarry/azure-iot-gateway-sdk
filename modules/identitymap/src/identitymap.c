@@ -484,6 +484,15 @@ static void get_temperature(const CONSTBUFFER* buffer, float* ambient, float* ob
     }
 }
 
+static void get_humidity(const CONSTBUFFER* buffer, float* temperature, float* humidity)
+{
+    if (buffer->size == 4)
+    {
+        uint16_t* vals = (uint16_t *)buffer->buffer;
+        sensortag_temp_convert(vals[0], vals[1], temperature, humidity);
+    }
+}
+
 /*
  * @brief	Republish message with new data from our matching identities.
  */
@@ -539,24 +548,43 @@ static void IdentityMap_RepublishD2C(
 				size_t bufferSize = 0;
 
 				const char* characteristic_uuid = ConstMap_GetValue(properties, GW_CHARACTERISTIC_UUID_PROPERTY);
-				if (characteristic_uuid != NULL
-					&& strcmp(characteristic_uuid, "F000AA01-0451-4000-B000-000000000000") == 0) // temperature
+				if (characteristic_uuid != NULL)
 				{
-					float ambient, object;
-
-					CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
-					get_temperature(CONSTBUFFER_GetContent(content), &ambient, &object);
-
-					thermostat->DeviceId = match->deviceId;
-					thermostat->Temperature = (int)ambient;
-					thermostat->ExternalTemperature = (int)object; // we'll pretend object temp is external temp
-
-					if (SERIALIZE(&buffer, &bufferSize, thermostat->DeviceId,
-						thermostat->Temperature, thermostat->ExternalTemperature) != IOT_AGENT_OK)
+					if (strcmp(characteristic_uuid, "F000AA01-0451-4000-B000-000000000000") == 0) // temperature
 					{
-						LogError("Failed to serialize temperature");
+						float ambient, object;
+
+						CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
+						get_temperature(CONSTBUFFER_GetContent(content), &ambient, &object);
+
+						thermostat->DeviceId = match->deviceId;
+						thermostat->Temperature = (int)ambient;
+						thermostat->ExternalTemperature = (int)object; // we'll pretend object temp is external temp
+
+						if (SERIALIZE(&buffer, &bufferSize, thermostat->DeviceId,
+							thermostat->Temperature, thermostat->ExternalTemperature) != IOT_AGENT_OK)
+						{
+							LogError("Failed to serialize temperature");
+						}
 					}
-					else if (buffer != NULL && bufferSize != 0)
+					else if (strcmp(characteristic_uuid, "F000AA21-0451-4000-B000-000000000000") == 0) // humidity
+					{
+						float temp, humidity;
+
+						CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
+						get_humidity(CONSTBUFFER_GetContent(content), &temp, &humidity);
+
+						thermostat->DeviceId = match->deviceId;
+						thermostat->Humidity = (int)humidity;
+
+						if (SERIALIZE(&buffer, &bufferSize, thermostat->DeviceId,
+							thermostat->Humidity) != IOT_AGENT_OK)
+						{
+							LogError("Failed to serialize temperature");
+						}
+					}
+
+					if (buffer != NULL && bufferSize != 0)
 					{
 						CONSTBUFFER_HANDLE newContent = CONSTBUFFER_Create(buffer, bufferSize);
 						free(buffer);
