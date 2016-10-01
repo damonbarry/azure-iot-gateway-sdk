@@ -34,8 +34,8 @@ DECLARE_STRUCT(SystemProperties,
 );
 
 DECLARE_STRUCT(DeviceProperties,
-    ascii_char_ptr, DeviceID,
-    _Bool, HubEnabledState
+ascii_char_ptr, DeviceID,
+_Bool, HubEnabledState
 );
 
 DECLARE_MODEL(Thermostat,
@@ -50,11 +50,29 @@ DECLARE_MODEL(Thermostat,
     WITH_DATA(ascii_char_ptr, ObjectType),
     WITH_DATA(_Bool, IsSimulatedDevice),
     WITH_DATA(ascii_char_ptr, Version),
-    WITH_DATA(DeviceProperties, DeviceProperties)//,
-    // WITH_DATA(ascii_char_ptr_no_quotes, Commands)
+    WITH_DATA(DeviceProperties, DeviceProperties),
+    WITH_DATA(ascii_char_ptr_no_quotes, Commands),
+
+    /* Commands implemented by the device */
+    WITH_ACTION(SetTemperature, int, temperature),
+    WITH_ACTION(SetHumidity, int, humidity)
 );
 
 END_NAMESPACE(Contoso);
+
+EXECUTE_COMMAND_RESULT SetTemperature(Thermostat* thermostat, int temperature)
+{
+    (void)printf("Received temperature %d\r\n", temperature);
+    thermostat->Temperature = temperature;
+    return EXECUTE_COMMAND_SUCCESS;
+}
+
+EXECUTE_COMMAND_RESULT SetHumidity(Thermostat* thermostat, int humidity)
+{
+    (void)printf("Received humidity %d\r\n", humidity);
+    thermostat->Humidity = humidity;
+    return EXECUTE_COMMAND_SUCCESS;
+}
 
 Thermostat* thermostat = NULL;
 
@@ -574,7 +592,7 @@ static void IdentityMap_RepublishD2C(
                         thermostat->ExternalTemperature = (int)object; // we'll pretend object temp is external temp
 
                         if (SERIALIZE(&buffer, &bufferSize, thermostat->DeviceId,
-                            thermostat->Temperature, thermostat->ExternalTemperature) != IOT_AGENT_OK)
+                            thermostat->Temperature, thermostat->Humidity, thermostat->ExternalTemperature) != IOT_AGENT_OK)
                         {
                             LogError("Failed to serialize temperature");
                         }
@@ -589,11 +607,11 @@ static void IdentityMap_RepublishD2C(
                         thermostat->DeviceId = (char*)match->deviceId;
                         thermostat->Humidity = (int)humidity;
 
-                        if (SERIALIZE(&buffer, &bufferSize, thermostat->DeviceId,
-                            thermostat->Humidity) != IOT_AGENT_OK)
-                        {
-                            LogError("Failed to serialize temperature");
-                        }
+                        // if (SERIALIZE(&buffer, &bufferSize, thermostat->DeviceId,
+                        //     thermostat->Humidity) != IOT_AGENT_OK)
+                        // {
+                        //     LogError("Failed to serialize temperature");
+                        // }
                     }
 
                     if (buffer != NULL && bufferSize != 0)
@@ -620,12 +638,11 @@ static void IdentityMap_RepublishD2C(
                             else
                             {
                                 messageHandle = newMessage;
+				                publish_with_new_properties(newProperties, messageHandle, idModule);
                             }
                         }
                     }
                 }
-
-                publish_with_new_properties(newProperties, messageHandle, idModule);
             }
             Map_Destroy(newProperties);
         }
@@ -878,23 +895,53 @@ static void IdentityMap_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messa
 									}
 									else
 									{
+					                    STRING_HANDLE commandsMetadata;
+
 										thermostat->ObjectType = "DeviceInfo";
 										thermostat->IsSimulatedDevice = false;
-										thermostat->Version = "4.2";
+										thermostat->Version = "1.0";
 										thermostat->DeviceProperties.HubEnabledState = true;
 										thermostat->DeviceProperties.DeviceID = (char*)match->deviceId;
+										thermostat->Temperature = 0;
+										thermostat->ExternalTemperature = 0;
+										thermostat->Humidity = 0;
+										thermostat->DeviceId = (char*)match->deviceId;
 
-										unsigned char* buffer;
-										size_t bufferSize;
-
-										if (SERIALIZE(&buffer, &bufferSize, thermostat->ObjectType, thermostat->IsSimulatedDevice,
-											thermostat->Version, thermostat->DeviceProperties) != CODEFIRST_OK)
+										commandsMetadata = STRING_new();
+										if (commandsMetadata == NULL)
 										{
-											LogError("Failed to serialize DeviceInfo message");
+											LogError("Failed create a string for commands metadata");
 										}
 										else
 										{
-											send_new_device_message(idModule, match, buffer, bufferSize);
+											/* Serialize the commands metadata as a JSON string before sending */
+											if (SchemaSerializer_SerializeCommandMetadata(GET_MODEL_HANDLE(Contoso, Thermostat), commandsMetadata) != SCHEMA_SERIALIZER_OK)
+											{
+												LogError("Failed to serialize commands metadata");
+											}
+											else
+											{
+												unsigned char* buffer;
+												size_t bufferSize;
+
+												thermostat->Commands = (char*)STRING_c_str(commandsMetadata);
+
+												if (SERIALIZE(&buffer, &bufferSize,
+													thermostat->ObjectType,
+													thermostat->Version,
+													thermostat->IsSimulatedDevice,
+													thermostat->DeviceProperties,
+													thermostat->Commands) != CODEFIRST_OK)
+												{
+													LogError("Failed to serialize DeviceInfo message");
+												}
+												else
+												{
+													send_new_device_message(idModule, match, buffer, bufferSize);
+												}
+											}
+
+											STRING_delete(commandsMetadata);
 										}
 									}
                                 }
