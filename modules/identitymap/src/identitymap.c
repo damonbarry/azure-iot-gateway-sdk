@@ -34,8 +34,12 @@ DECLARE_STRUCT(SystemProperties,
 );
 
 DECLARE_STRUCT(DeviceProperties,
-ascii_char_ptr, DeviceID,
-_Bool, HubEnabledState
+    ascii_char_ptr, DeviceID,
+    _Bool, HubEnabledState,
+    ascii_char_ptr, Manufacturer,
+    ascii_char_ptr, ModelNumber,
+    ascii_char_ptr, SerialNumber,
+    ascii_char_ptr, FirmwareVersion
 );
 
 DECLARE_MODEL(Thermostat,
@@ -49,30 +53,30 @@ DECLARE_MODEL(Thermostat,
     /* Device Info - This is command metadata + some extra fields */
     WITH_DATA(ascii_char_ptr, ObjectType),
     WITH_DATA(_Bool, IsSimulatedDevice),
-    WITH_DATA(ascii_char_ptr, Version),
-    WITH_DATA(DeviceProperties, DeviceProperties),
-    WITH_DATA(ascii_char_ptr_no_quotes, Commands),
+    // WITH_DATA(ascii_char_ptr, Version),
+    WITH_DATA(DeviceProperties, DeviceProperties)//,
+    // WITH_DATA(ascii_char_ptr_no_quotes, Commands),
 
     /* Commands implemented by the device */
-    WITH_ACTION(SetTemperature, int, temperature),
-    WITH_ACTION(SetHumidity, int, humidity)
+    // WITH_ACTION(SetTemperature, int, temperature),
+    // WITH_ACTION(SetHumidity, int, humidity)
 );
 
 END_NAMESPACE(Contoso);
 
-EXECUTE_COMMAND_RESULT SetTemperature(Thermostat* thermostat, int temperature)
-{
-    (void)printf("Received temperature %d\r\n", temperature);
-    thermostat->Temperature = temperature;
-    return EXECUTE_COMMAND_SUCCESS;
-}
+// EXECUTE_COMMAND_RESULT SetTemperature(Thermostat* thermostat, int temperature)
+// {
+//     (void)printf("Received temperature %d\r\n", temperature);
+//     thermostat->Temperature = temperature;
+//     return EXECUTE_COMMAND_SUCCESS;
+// }
 
-EXECUTE_COMMAND_RESULT SetHumidity(Thermostat* thermostat, int humidity)
-{
-    (void)printf("Received humidity %d\r\n", humidity);
-    thermostat->Humidity = humidity;
-    return EXECUTE_COMMAND_SUCCESS;
-}
+// EXECUTE_COMMAND_RESULT SetHumidity(Thermostat* thermostat, int humidity)
+// {
+//     (void)printf("Received humidity %d\r\n", humidity);
+//     thermostat->Humidity = humidity;
+//     return EXECUTE_COMMAND_SUCCESS;
+// }
 
 Thermostat* thermostat = NULL;
 
@@ -287,6 +291,17 @@ static bool IdentityMap_ValidateConfig(const VECTOR_HANDLE mappingVector)
     return mappingOk;
 }
 
+static bool init_device_property(char** property)
+{
+    *property = NULL;
+    char* newStr = realloc(*property, 1);
+    if (!newStr) return false;
+
+    *newStr = 0;
+    *property = newStr;
+    return true;
+}
+
 /*
  * @brief    Create an identity map module.
  */
@@ -304,109 +319,169 @@ static MODULE_HANDLE IdentityMap_Create(BROKER_HANDLE broker, const void* config
     {
         if (serializer_init(NULL) != SERIALIZER_OK)
         {
-            printf("Failed on serializer_init\r\n");
+            LogError("Failed on serializer_init");
+            result = NULL;
         }
         else
         {
             thermostat = CREATE_MODEL_INSTANCE(Contoso, Thermostat);
             if (thermostat == NULL)
             {
-                (void)printf("Failed on CREATE_MODEL_INSTANCE\r\n");
+                LogError("Failed on CREATE_MODEL_INSTANCE");
+                result = NULL;
             }
             else
             {
-                VECTOR_HANDLE mappingVector = (VECTOR_HANDLE)configuration;
-                if (IdentityMap_ValidateConfig(mappingVector) == false)
+                if (!init_device_property(&(thermostat->DeviceProperties.Manufacturer)) ||
+                    !init_device_property(&(thermostat->DeviceProperties.ModelNumber)) ||
+                    !init_device_property(&(thermostat->DeviceProperties.SerialNumber)) ||
+                    !init_device_property(&(thermostat->DeviceProperties.FirmwareVersion)))
                 {
-                    LogError("unable to validate mapping table");
+                    LogError("failed to allocate memory for device properties");
+                    free(thermostat->DeviceProperties.Manufacturer);
+                    free(thermostat->DeviceProperties.ModelNumber);
+                    free(thermostat->DeviceProperties.SerialNumber);
+                    free(thermostat->DeviceProperties.FirmwareVersion);
+                    DESTROY_MODEL_INSTANCE(thermostat);
+                    serializer_deinit();
                     result = NULL;
                 }
                 else
                 {
-                    result = (IDENTITY_MAP_DATA*)malloc(sizeof(IDENTITY_MAP_DATA));
-                    if (result == NULL)
+                    VECTOR_HANDLE mappingVector = (VECTOR_HANDLE)configuration;
+                    if (IdentityMap_ValidateConfig(mappingVector) == false)
                     {
-                        /*Codes_SRS_IDMAP_17_010: [If IdentityMap_Create fails to allocate a new IDENTITY_MAP_DATA structure, then this function shall fail, and return NULL.]*/
-                        LogError("Could not Allocate Module");
+                        LogError("unable to validate mapping table");
+                        free(thermostat->DeviceProperties.Manufacturer);
+                        free(thermostat->DeviceProperties.ModelNumber);
+                        free(thermostat->DeviceProperties.SerialNumber);
+                        free(thermostat->DeviceProperties.FirmwareVersion);
+                        DESTROY_MODEL_INSTANCE(thermostat);
+                        serializer_deinit();
+                        result = NULL;
                     }
                     else
                     {
-                        result->active_devices = VECTOR_create(sizeof(STRING_HANDLE));
-                        if (result->active_devices == NULL)
+                        result = (IDENTITY_MAP_DATA*)malloc(sizeof(IDENTITY_MAP_DATA));
+                        if (result == NULL)
                         {
-                            LogError("Could not allcate the active_devices vector");
+                            /*Codes_SRS_IDMAP_17_010: [If IdentityMap_Create fails to allocate a new IDENTITY_MAP_DATA structure, then this function shall fail, and return NULL.]*/
+                            LogError("Could not Allocate Module");
+                            free(thermostat->DeviceProperties.Manufacturer);
+                            free(thermostat->DeviceProperties.ModelNumber);
+                            free(thermostat->DeviceProperties.SerialNumber);
+                            free(thermostat->DeviceProperties.FirmwareVersion);
+                            DESTROY_MODEL_INSTANCE(thermostat);
+                            serializer_deinit();
                         }
                         else
                         {
-                            size_t mappingSize = VECTOR_size(mappingVector);
-                            /* validation ensures the vector is greater than zero */
-                            result->macToDevIdArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
-                            if (result->macToDevIdArray == NULL)
+                            result->active_devices = VECTOR_create(sizeof(STRING_HANDLE));
+                            if (result->active_devices == NULL)
                             {
-                                /*Codes_SRS_IDMAP_17_011: [If IdentityMap_Create fails to create memory for the macToDeviceArray, then this function shall fail and return NULL.*/
-                                LogError("Could not allocate mac to device mapping table");
+                                LogError("Could not allcate the active_devices vector");
+                                free(thermostat->DeviceProperties.Manufacturer);
+                                free(thermostat->DeviceProperties.ModelNumber);
+                                free(thermostat->DeviceProperties.SerialNumber);
+                                free(thermostat->DeviceProperties.FirmwareVersion);
+                                DESTROY_MODEL_INSTANCE(thermostat);
+                                serializer_deinit();
                                 free(result);
                                 result = NULL;
                             }
                             else
                             {
-                                result->devIdToMacArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
-                                if (result->devIdToMacArray == NULL)
+                                size_t mappingSize = VECTOR_size(mappingVector);
+                                /* validation ensures the vector is greater than zero */
+                                result->macToDevIdArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
+                                if (result->macToDevIdArray == NULL)
                                 {
-                                    /*Codes_SRS_IDMAP_17_042: [ If IdentityMap_Create fails to create memory for the deviceToMacArray, then this function shall fail and return NULL. */
-                                    LogError("Could not allocate devicee to mac mapping table");
-                                    free(result->macToDevIdArray);
+                                    /*Codes_SRS_IDMAP_17_011: [If IdentityMap_Create fails to create memory for the macToDeviceArray, then this function shall fail and return NULL.*/
+                                    LogError("Could not allocate mac to device mapping table");
+                                    VECTOR_destroy(result->active_devices);
+                                    free(thermostat->DeviceProperties.Manufacturer);
+                                    free(thermostat->DeviceProperties.ModelNumber);
+                                    free(thermostat->DeviceProperties.SerialNumber);
+                                    free(thermostat->DeviceProperties.FirmwareVersion);
+                                    DESTROY_MODEL_INSTANCE(thermostat);
+                                    serializer_deinit();
                                     free(result);
                                     result = NULL;
                                 }
                                 else
                                 {
-
-                                    size_t index;
-                                    size_t failureIndex = mappingSize;
-                                    for (index = 0; index < mappingSize; index++)
+                                    result->devIdToMacArray = (IDENTITY_MAP_CONFIG*)malloc(mappingSize*sizeof(IDENTITY_MAP_CONFIG));
+                                    if (result->devIdToMacArray == NULL)
                                     {
-                                        IDENTITY_MAP_CONFIG * element = (IDENTITY_MAP_CONFIG *)VECTOR_element(mappingVector, index);
-                                        IDENTITY_MAP_CONFIG * dest = &(result->macToDevIdArray[index]);
-                                        IDENTITYMAP_RESULT copyResult;
-                                        copyResult = IdentityMapConfig_CopyDeep(dest, element);
-                                        if (copyResult != IDENTITYMAP_OK)
-                                        {
-                                            failureIndex = index;
-                                            break;
-                                        }
-                                        dest = &(result->devIdToMacArray[index]);
-                                        copyResult = IdentityMapConfig_CopyDeep(dest, element);
-                                        if (copyResult != IDENTITYMAP_OK)
-                                        {
-                                            IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
-                                            failureIndex = index;
-                                            break;
-                                        }
-                                    }
-                                    if (failureIndex < mappingSize)
-                                    {
-                                        /*Codes_SRS_IDMAP_17_012: [If IdentityMap_Create fails to add a MAC address triplet to the macToDeviceArray, then this function shall fail, release all resources, and return NULL.]*/
-                                        /*Codes_SRS_IDMAP_17_043: [ If IdentityMap_Create fails to add a MAC address triplet to the deviceToMacArray, then this function shall fail, release all resources, and return NULL. */
-                                        for (index = 0; index < failureIndex; index++)
-                                        {
-                                            IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
-                                            IdentityMapConfig_Free(&(result->devIdToMacArray[index]));
-                                        }
+                                        /*Codes_SRS_IDMAP_17_042: [ If IdentityMap_Create fails to create memory for the deviceToMacArray, then this function shall fail and return NULL. */
+                                        LogError("Could not allocate devicee to mac mapping table");
                                         free(result->macToDevIdArray);
-                                        free(result->devIdToMacArray);
+                                        VECTOR_destroy(result->active_devices);
+                                        free(thermostat->DeviceProperties.Manufacturer);
+                                        free(thermostat->DeviceProperties.ModelNumber);
+                                        free(thermostat->DeviceProperties.SerialNumber);
+                                        free(thermostat->DeviceProperties.FirmwareVersion);
+                                        DESTROY_MODEL_INSTANCE(thermostat);
+                                        serializer_deinit();
                                         free(result);
                                         result = NULL;
                                     }
                                     else
                                     {
-                                        /*Codes_SRS_IDMAP_17_003: [Upon success, this function shall return a valid pointer to a MODULE_HANDLE.]*/
-                                        qsort(result->macToDevIdArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
-                                            IdentityMapConfig_MacCompare);
-                                        qsort(result->devIdToMacArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
-                                            IdentityMapConfig_IdCompare);
-                                        result->mappingSize = mappingSize;
-                                        result->broker = broker;
+
+                                        size_t index;
+                                        size_t failureIndex = mappingSize;
+                                        for (index = 0; index < mappingSize; index++)
+                                        {
+                                            IDENTITY_MAP_CONFIG * element = (IDENTITY_MAP_CONFIG *)VECTOR_element(mappingVector, index);
+                                            IDENTITY_MAP_CONFIG * dest = &(result->macToDevIdArray[index]);
+                                            IDENTITYMAP_RESULT copyResult;
+                                            copyResult = IdentityMapConfig_CopyDeep(dest, element);
+                                            if (copyResult != IDENTITYMAP_OK)
+                                            {
+                                                failureIndex = index;
+                                                break;
+                                            }
+                                            dest = &(result->devIdToMacArray[index]);
+                                            copyResult = IdentityMapConfig_CopyDeep(dest, element);
+                                            if (copyResult != IDENTITYMAP_OK)
+                                            {
+                                                IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
+                                                failureIndex = index;
+                                                break;
+                                            }
+                                        }
+                                        if (failureIndex < mappingSize)
+                                        {
+                                            /*Codes_SRS_IDMAP_17_012: [If IdentityMap_Create fails to add a MAC address triplet to the macToDeviceArray, then this function shall fail, release all resources, and return NULL.]*/
+                                            /*Codes_SRS_IDMAP_17_043: [ If IdentityMap_Create fails to add a MAC address triplet to the deviceToMacArray, then this function shall fail, release all resources, and return NULL. */
+                                            for (index = 0; index < failureIndex; index++)
+                                            {
+                                                IdentityMapConfig_Free(&(result->macToDevIdArray[index]));
+                                                IdentityMapConfig_Free(&(result->devIdToMacArray[index]));
+                                            }
+                                            free(result->macToDevIdArray);
+                                            free(result->devIdToMacArray);
+                                            VECTOR_destroy(result->active_devices);
+                                            free(thermostat->DeviceProperties.Manufacturer);
+                                            free(thermostat->DeviceProperties.ModelNumber);
+                                            free(thermostat->DeviceProperties.SerialNumber);
+                                            free(thermostat->DeviceProperties.FirmwareVersion);
+                                            DESTROY_MODEL_INSTANCE(thermostat);
+                                            serializer_deinit();
+                                            free(result);
+                                            result = NULL;
+                                        }
+                                        else
+                                        {
+                                            /*Codes_SRS_IDMAP_17_003: [Upon success, this function shall return a valid pointer to a MODULE_HANDLE.]*/
+                                            qsort(result->macToDevIdArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
+                                                IdentityMapConfig_MacCompare);
+                                            qsort(result->devIdToMacArray, mappingSize, sizeof(IDENTITY_MAP_CONFIG),
+                                                IdentityMapConfig_IdCompare);
+                                            result->mappingSize = mappingSize;
+                                            result->broker = broker;
+                                        }
                                     }
                                 }
                             }
@@ -436,13 +511,24 @@ static void IdentityMap_Destroy(MODULE_HANDLE moduleHandle)
         }
         free(idModule->macToDevIdArray);
         free(idModule->devIdToMacArray);
-		VECTOR_destroy(idModule->active_devices);
+
+        for (size_t i = 0; i < VECTOR_size(idModule->active_devices); ++i)
+        {
+            STRING_delete(VECTOR_element(idModule->active_devices, i));
+        }
+        // VECTOR_destroy(idModule->active_devices);
+
         free(idModule);
     }
 
     if (thermostat != NULL)
     {
+        free(thermostat->DeviceProperties.Manufacturer);
+        free(thermostat->DeviceProperties.ModelNumber);
+        free(thermostat->DeviceProperties.SerialNumber);
+        free(thermostat->DeviceProperties.FirmwareVersion);
         DESTROY_MODEL_INSTANCE(thermostat);
+        serializer_deinit();
     }
 }
 
@@ -613,6 +699,54 @@ static void IdentityMap_RepublishD2C(
                         //     LogError("Failed to serialize temperature");
                         // }
                     }
+                    else if (strcmp(characteristic_uuid, "00002A29-0000-1000-8000-00805F9B34FB") == 0) // manufacturer
+                    {
+                        CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
+                        const CONSTBUFFER* buf = CONSTBUFFER_GetContent(content);
+                        char* newStr = realloc(thermostat->DeviceProperties.Manufacturer, buf->size + 1);
+                        if (newStr != NULL)
+                        {
+                            memcpy(newStr, buf->buffer, buf->size);
+                            newStr[buf->size] = 0;
+                            thermostat->DeviceProperties.Manufacturer = newStr;
+                        }
+                    }
+                    else if (strcmp(characteristic_uuid, "00002A24-0000-1000-8000-00805F9B34FB") == 0) // model number
+                    {
+                        CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
+                        const CONSTBUFFER* buf = CONSTBUFFER_GetContent(content);
+                        char* newStr = realloc(thermostat->DeviceProperties.ModelNumber, buf->size);
+                        if (newStr != NULL)
+                        {
+                            memcpy(newStr, buf->buffer, buf->size);
+                            newStr[buf->size] = 0;
+                            thermostat->DeviceProperties.ModelNumber = newStr;
+                        }
+                    }
+                    else if (strcmp(characteristic_uuid, "00002A25-0000-1000-8000-00805F9B34FB") == 0) // serial number
+                    {
+                        CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
+                        const CONSTBUFFER* buf = CONSTBUFFER_GetContent(content);
+                        char* newStr = realloc(thermostat->DeviceProperties.SerialNumber, buf->size);
+                        if (newStr != NULL)
+                        {
+                            memcpy(newStr, buf->buffer, buf->size);
+                            newStr[buf->size] = 0;
+                            thermostat->DeviceProperties.SerialNumber = newStr;
+                        }
+                    }
+                    else if (strcmp(characteristic_uuid, "00002A26-0000-1000-8000-00805F9B34FB") == 0) // firmware version
+                    {
+                        CONSTBUFFER_HANDLE content = Message_GetContentHandle(messageHandle);
+                        const CONSTBUFFER* buf = CONSTBUFFER_GetContent(content);
+                        char* newStr = realloc(thermostat->DeviceProperties.FirmwareVersion, buf->size);
+                        if (newStr != NULL)
+                        {
+                            memcpy(newStr, buf->buffer, buf->size);
+                            newStr[buf->size] = 0;
+                            thermostat->DeviceProperties.FirmwareVersion = newStr;
+                        }
+                    }
 
                     if (buffer != NULL && bufferSize != 0)
                     {
@@ -638,7 +772,7 @@ static void IdentityMap_RepublishD2C(
                             else
                             {
                                 messageHandle = newMessage;
-				                publish_with_new_properties(newProperties, messageHandle, idModule);
+                                publish_with_new_properties(newProperties, messageHandle, idModule);
                             }
                         }
                     }
@@ -749,30 +883,30 @@ static bool matches_mac(const void* element, const void* value)
 
 static bool send_new_device_message(IDENTITY_MAP_DATA* data, const IDENTITY_MAP_CONFIG* identity, const unsigned char* buffer, size_t size)
 {
-	bool result;
+    bool result;
 
     MAP_HANDLE properties = Map_Create(NULL);
     if (properties == NULL)
     {
         LogError("Could not create properties map");
-		result = false;
+        result = false;
     }
     else
     {
         if (Map_Add(properties, GW_DEVICENAME_PROPERTY, identity->deviceId) != MAP_OK)
         {
             LogError("Could not attach %s property to message", GW_DEVICENAME_PROPERTY);
-			result = false;
+            result = false;
         }
         else if (Map_AddOrUpdate(properties, GW_DEVICEKEY_PROPERTY, identity->deviceKey) != MAP_OK)
         {
             LogError("Could not attach %s property to message", GW_DEVICEKEY_PROPERTY);
-			result = false;
+            result = false;
         }
         else if (Map_AddOrUpdate(properties, GW_SOURCE_PROPERTY, GW_IDMAP_MODULE) != MAP_OK)
         {
             LogError("Could not attach %s property to message", GW_SOURCE_PROPERTY);
-			result = false;
+            result = false;
         }
         else
         {
@@ -781,14 +915,14 @@ static bool send_new_device_message(IDENTITY_MAP_DATA* data, const IDENTITY_MAP_
             if (message == NULL)
             {
                 LogError("Failed to create new device message");
-				result = false;
+                result = false;
             }
             else
             {
                 if (Broker_Publish(data->broker, (MODULE_HANDLE)data, message) != BROKER_OK)
                 {
                     LogError("Message broker publish failure");
-					result = false;
+                    result = false;
                 }
                 else
                 {
@@ -802,7 +936,7 @@ static bool send_new_device_message(IDENTITY_MAP_DATA* data, const IDENTITY_MAP_
         Map_Destroy(properties);
     }
 
-	return result;
+    return result;
 }
 
 
@@ -884,69 +1018,83 @@ static void IdentityMap_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messa
                                 STRING_HANDLE found = VECTOR_find_if(idModule->active_devices, matches_mac, messageMac);
                                 if (found == NULL)
                                 {
-									STRING_HANDLE clone = STRING_construct(messageMac);
-									if (clone == NULL)
-									{
-										LogError("Couldn't clone MAC string");
-									}
-									else if (VECTOR_push_back(idModule->active_devices, clone, 1) != 0)
-									{
-										LogError("Couldn't push MAC to active_devices");
-									}
-									else
-									{
-					                    STRING_HANDLE commandsMetadata;
+                                    STRING_HANDLE clone = STRING_construct(messageMac);
+                                    if (clone == NULL)
+                                    {
+                                        LogError("Couldn't clone MAC string");
+                                    }
+                                    else
+                                    {
+                                        // STRING_HANDLE commandsMetadata;
 
-										thermostat->ObjectType = "DeviceInfo";
-										thermostat->IsSimulatedDevice = false;
-										thermostat->Version = "1.0";
-										thermostat->DeviceProperties.HubEnabledState = true;
-										thermostat->DeviceProperties.DeviceID = (char*)match->deviceId;
-										thermostat->Temperature = 0;
-										thermostat->ExternalTemperature = 0;
-										thermostat->Humidity = 0;
-										thermostat->DeviceId = (char*)match->deviceId;
+                                        thermostat->ObjectType = "DeviceInfo";
+                                        thermostat->IsSimulatedDevice = false;
+                                        // thermostat->Version = "1.0";
+                                        thermostat->DeviceProperties.HubEnabledState = true;
+                                        thermostat->DeviceProperties.DeviceID = (char*)match->deviceId;
+                                        thermostat->Temperature = 0;
+                                        thermostat->ExternalTemperature = 0;
+                                        thermostat->Humidity = 0;
+                                        thermostat->DeviceId = (char*)match->deviceId;
 
-										commandsMetadata = STRING_new();
-										if (commandsMetadata == NULL)
-										{
-											LogError("Failed create a string for commands metadata");
-										}
-										else
-										{
-											/* Serialize the commands metadata as a JSON string before sending */
-											if (SchemaSerializer_SerializeCommandMetadata(GET_MODEL_HANDLE(Contoso, Thermostat), commandsMetadata) != SCHEMA_SERIALIZER_OK)
-											{
-												LogError("Failed to serialize commands metadata");
-											}
-											else
-											{
-												unsigned char* buffer;
-												size_t bufferSize;
+                                        // commandsMetadata = STRING_new();
+                                        // if (commandsMetadata == NULL)
+                                        // {
+                                        //     LogError("Failed create a string for commands metadata");
+                                        // }
+                                        // else
+                                        // {
+                                        //     /* Serialize the commands metadata as a JSON string before sending */
+                                        //     if (SchemaSerializer_SerializeCommandMetadata(GET_MODEL_HANDLE(Contoso, Thermostat), commandsMetadata) != SCHEMA_SERIALIZER_OK)
+                                        //     {
+                                        //         LogError("Failed to serialize commands metadata");
+                                        //     }
+                                        //     else
+                                        //     {
+                                                if (*(thermostat->DeviceProperties.Manufacturer) != 0 &&
+                                                    *(thermostat->DeviceProperties.ModelNumber) != 0 &&
+                                                    *(thermostat->DeviceProperties.SerialNumber) != 0 &&
+                                                    *(thermostat->DeviceProperties.FirmwareVersion) != 0)
+                                                {
+                                                    unsigned char* buffer;
+                                                    size_t bufferSize;
 
-												thermostat->Commands = (char*)STRING_c_str(commandsMetadata);
+                                                    // thermostat->Commands = (char*)STRING_c_str(commandsMetadata);
 
-												if (SERIALIZE(&buffer, &bufferSize,
-													thermostat->ObjectType,
-													thermostat->Version,
-													thermostat->IsSimulatedDevice,
-													thermostat->DeviceProperties,
-													thermostat->Commands) != CODEFIRST_OK)
-												{
-													LogError("Failed to serialize DeviceInfo message");
-												}
-												else
-												{
-													send_new_device_message(idModule, match, buffer, bufferSize);
-												}
-											}
+                                                    if (SERIALIZE(&buffer, &bufferSize,
+                                                        thermostat->ObjectType,
+                                                        // thermostat->Version,
+                                                        thermostat->IsSimulatedDevice,
+                                                        thermostat->DeviceProperties,
+                                                        thermostat->DeviceId/*, thermostat->Commands*/) != CODEFIRST_OK)
+                                                    {
+                                                        LogError("Failed to serialize DeviceInfo message");
+                                                    }
+                                                    else
+                                                    {
+                                                        if (!send_new_device_message(idModule, match, buffer, bufferSize))
+                                                        {
+                                                            LogError("Couldn't send DeviceInfo message");
+                                                        }
+                                                        else
+                                                        {
+                                                            if (VECTOR_push_back(idModule->active_devices, clone, 1) != 0)
+                                                            {
+                                                                LogError("Couldn't push MAC to active_devices");
+                                                            }
+                                                        }
 
-											STRING_delete(commandsMetadata);
-										}
-									}
+                                                        free(buffer);
+                                                    }
+                                                }
+                                        //     }
+
+                                        //     STRING_delete(commandsMetadata);
+                                        // }
+                                    }
                                 }
 
-								IdentityMap_RepublishD2C(idModule, messageHandle, match);
+                                IdentityMap_RepublishD2C(idModule, messageHandle, match);
                             }
                         }
                     }
@@ -955,8 +1103,8 @@ static void IdentityMap_Receive(MODULE_HANDLE moduleHandle, MESSAGE_HANDLE messa
                 }
             }
         }
-        ConstMap_Destroy(properties);
 
+        ConstMap_Destroy(properties);
     }
 }
 
