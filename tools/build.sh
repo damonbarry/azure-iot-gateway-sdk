@@ -6,15 +6,16 @@ set -e
 
 build_clean=
 build_root=$(cd "$(dirname "$0")/.." && pwd)
+local_install=$build_root/install-deps
 log_dir=$build_root
 skip_unittests=OFF
-run_e2e_tests=ON
+run_e2e_tests=OFF
 run_valgrind=0
 enable_java_binding=OFF
 enable_nodejs_binding=OFF
 toolchainfile=
 enable_ble_module=ON
-dependency_install_prefix=
+dependency_install_prefix="-Ddependency_install_prefix=$local_install"
 
 cd "$build_root"
 usage ()
@@ -26,13 +27,14 @@ usage ()
     echo " -cl, --compileoption <value>  specify a compile option to be passed to gcc"
     echo "   Example: -cl -O1 -cl ..."
     echo " -rv, --run-valgrind           will execute ctest with valgrind"
-    echo " --skip-unittests              skip the running of unit tests (unit tests are run by default)"
-    echo " --skip-e2e-tests              skip the running of end-to-end tests (e2e tests are run by default)"
-    echo " --enable-java-binding         enables building of Java binding; environment variable JAVA_HOME must be defined"
-    echo " --enable-nodejs-binding       enables building of Node.js binding; environment variables NODE_INCLUDE and NODE_LIB must be defined"
     echo " --toolchain-file <file>       pass cmake a toolchain file for cross compiling"
-    echo " --disable-ble-module           remove building of BLE module (ble module build is ON by default in Linux)"
-    echo " --install-dependencies-in-tree installs dependencies in the repo if unable to run the script as an admin"
+    echo " --skip-unittests              do not build/run unit tests"
+    echo " --run-e2e-tests               build/run end-to-end tests"
+    echo " --enable-java-binding         build the Java binding; environment variable JAVA_HOME must be defined"
+    echo " --enable-nodejs-binding       build Node.js binding; environment variables NODE_INCLUDE and NODE_LIB must be defined"
+    echo " --disable-ble-module          do not build the BLE module"
+    echo " --install-dependencies        look for or install dependencies in the default location (e.g., /usr/local)"
+    echo "                               (by default, dependencies are installed under $local_install)"
     exit 1
 }
 
@@ -59,14 +61,14 @@ process_args ()
               "-x" | "--xtrace" ) set -x;;
               "-c" | "--clean" ) build_clean=1;;
               "--skip-unittests" ) skip_unittests=ON;;
-              "--skip-e2e-tests" ) run_e2e_tests=OFF;;
+              "--run-e2e-tests" ) run_e2e_tests=ON;;
               "-cl" | "--compileoption" ) save_next_arg=1;;
               "-rv" | "--run-valgrind" ) run_valgrind=1;;
               "--enable-java-binding" ) enable_java_binding=ON;;
               "--enable-nodejs-binding" ) enable_nodejs_binding=ON;;
               "--disable-ble-module" ) enable_ble_module=OFF;;
               "--toolchain-file" ) save_next_arg=2;;
-              "--install-dependencies-in-tree" ) dependency_install_prefix="-Ddependency_install_prefix=$build_root/install-deps";;
+              "--install-dependencies" ) dependency_install_prefix=;;
               * ) usage;;
           esac
       fi
@@ -87,8 +89,9 @@ then
     [ $? -eq 0 ] || exit $?
 fi
 
-cmake_root="$build_root"/build
+cmake_root="$build_root/build"
 rm -r -f "$cmake_root"
+git submodule foreach --recursive --quiet "rm -r -f build/"
 mkdir -p "$cmake_root"
 pushd "$cmake_root"
 cmake $toolchainfile \
@@ -128,14 +131,17 @@ fi
 
 make --jobs=$CORES
 
-if [[ $run_valgrind == 1 ]] ;
+if [[ "$skip_unittests" == "OFF" || "$run_e2e_tests" == "ON" ]]
 then
-    #use doctored (-DPURIFY no-asm) openssl
-    export LD_LIBRARY_PATH=/usr/local/ssl/lib
-    ctest -j $CORES --output-on-failure
-    export LD_LIBRARY_PATH=
-else
-    ctest -j $CORES -C "Debug" --output-on-failure
+    if [[ $run_valgrind == 1 ]]
+    then
+        #use doctored (-DPURIFY no-asm) openssl
+        export LD_LIBRARY_PATH=/usr/local/ssl/lib
+        ctest -j $CORES --output-on-failure
+        export LD_LIBRARY_PATH=
+    else
+        ctest -j $CORES -C "Debug" --output-on-failure
+    fi
 fi
 
 popd
