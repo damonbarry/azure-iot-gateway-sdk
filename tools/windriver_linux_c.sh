@@ -5,8 +5,8 @@
 
 toolchain_root="/opt/windriver/wrlinux/7.0-intel-baytrail-64"
 build_root=$(cd "$(dirname "$0")/.." && pwd)
-
-dependency_install_prefix=
+local_install=$build_root/install-deps
+dependency_install_prefix="-Ddependency_install_prefix=$local_install"
 
 cd $build_root
 
@@ -15,7 +15,8 @@ usage ()
     echo "windriver_linux_c.sh [options]"
     echo "options"
     echo " --toolchain              set the toolchain directory location"
-    echo " --install-dependencies-in-tree       tells cmake to install all dependencies within the repo "
+    echo " --install-dependencies   look for or install dependencies in the default location (e.g., /usr/local)"
+    echo "                          (by default, dependencies are installed under $local_install)"
     exit 1
 }
 
@@ -34,7 +35,7 @@ process_args ()
       else
           case "$arg" in
               "--toolchain" ) save_next_arg=1;;
-              "--install-dependencies-in-tree" ) dependency_install_prefix="-Ddependency_install_prefix=$build_root/install-deps";;
+              "--install-dependencies" ) dependency_install_prefix=;;
               * ) usage;;
           esac
       fi
