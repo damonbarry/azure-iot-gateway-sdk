@@ -15,8 +15,9 @@ usage ()
     echo "windriver_linux_c.sh [options]"
     echo "options"
     echo " --toolchain              set the toolchain directory location"
-    echo " --install-dependencies   look for or install dependencies in the default location (e.g., /usr/local)"
-    echo "                          (by default, dependencies are installed under $local_install)"
+    echo " --system-deps-path       Searches for (installs, if needed) dependencies"
+    echo "                          in a location that is available system-wide, e.g."
+    echo "                          /usr/local. Default path is $local_install."
     exit 1
 }
 
@@ -35,7 +36,7 @@ process_args ()
       else
           case "$arg" in
               "--toolchain" ) save_next_arg=1;;
-              "--install-dependencies" ) dependency_install_prefix=;;
+              "--system-deps-path" ) dependency_install_prefix=;;
               * ) usage;;
           esac
       fi

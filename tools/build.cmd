@@ -40,7 +40,7 @@ if "%1" equ "--enable-dotnet-binding" goto arg-enable-dotnet-binding
 if "%1" equ "--enable-java-binding" goto arg-enable-java-binding
 if "%1" equ "--enable-nodejs-binding" goto arg-enable_nodejs_binding
 if "%1" equ "--disable-ble-module" goto arg-disable_ble_module
-if "%1" equ "--install-dependencies" goto arg-install-dependencies
+if "%1" equ "--system-deps-path" goto arg-system-deps-path
 
 call :usage && exit /b 1
 
@@ -82,7 +82,7 @@ goto args-continue
 set enable_nodejs_binding=ON
 goto args-continue
 
-:arg-install-dependencies
+:arg-system-deps-path
 set dependency_install_prefix=""
 goto args-continue
 
@@ -139,15 +139,19 @@ rem ----------------------------------------------------------------------------
 :usage
 echo build.cmd [options]
 echo options:
-echo  --config ^<value^>        [Debug] build configuration (e.g. Debug, Release)
-echo  --platform ^<value^>      [Win32] build platform (e.g. Win32, x64, ...)
-echo  --skip-unittests          do not build/run unit tests
-echo  --run-e2e-tests           build/run end-to-end tests
-echo  --enable-dotnet-binding   build dotnet binding binaries
-echo  --enable-java-binding     build the Java binding; environment variable JAVA_HOME must be defined
-echo  --enable-nodejs-binding   build Node.js binding; environment variables NODE_INCLUDE and NODE_LIB must be defined
-echo  --disable-ble-module      do not build the BLE module
-echo  --install-dependencies    look for or install dependencies in the default location (e.g., "C:\Program Files (x86)")
-echo                            (by default, dependencies are installed under %local-install%) 
+echo  --config value            Build configuration (e.g. [Debug], Release)
+echo  --platform value          Build platform (e.g. [Win32], x64, ...)
+echo  --skip-unittests          Do not build/run unit tests
+echo  --run-e2e-tests           Build/run end-to-end tests
+echo  --enable-dotnet-binding   Build the .NET binding
+echo  --enable-java-binding     Build the Java binding
+echo                            (JAVA_HOME must be defined in your environment)
+echo  --enable-nodejs-binding   Build Node.js binding
+echo                            (NODE_INCLUDE, NODE_LIB must be defined)
+echo  --disable-ble-module      Do not build the BLE module
+echo  --system-deps-path        Searches for (installs, if needed) dependencies
+echo                            in a location that is available system-wide, e.g.
+echo                            "C:\Program Files (x86)". Default path is
+echo                            %local-install%. 
 goto :eof
 

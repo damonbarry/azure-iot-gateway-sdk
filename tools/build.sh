@@ -22,19 +22,22 @@ usage ()
 {
     echo "build.sh [options]"
     echo "options"
-    echo " -x,  --xtrace                 print a trace of each command"
-    echo " -c,  --clean                  remove artifacts from previous build before building"
-    echo " -cl, --compileoption <value>  specify a compile option to be passed to gcc"
+    echo " -x,  --xtrace                 Print a trace of each command"
+    echo " -c,  --clean                  Remove previous build artifacts"
+    echo " -cl, --compileoption <value>  Specify a gcc compile option"
     echo "   Example: -cl -O1 -cl ..."
-    echo " -rv, --run-valgrind           will execute ctest with valgrind"
-    echo " --toolchain-file <file>       pass cmake a toolchain file for cross compiling"
-    echo " --skip-unittests              do not build/run unit tests"
-    echo " --run-e2e-tests               build/run end-to-end tests"
-    echo " --enable-java-binding         build the Java binding; environment variable JAVA_HOME must be defined"
-    echo " --enable-nodejs-binding       build Node.js binding; environment variables NODE_INCLUDE and NODE_LIB must be defined"
-    echo " --disable-ble-module          do not build the BLE module"
-    echo " --install-dependencies        look for or install dependencies in the default location (e.g., /usr/local)"
-    echo "                               (by default, dependencies are installed under $local_install)"
+    echo " -rv, --run-valgrind           Execute ctest with valgrind"
+    echo " --toolchain-file <file>       Pass CMake a toolchain file for cross-compiling"
+    echo " --skip-unittests              Do not build/run unit tests"
+    echo " --run-e2e-tests               Build/run end-to-end tests"
+    echo " --enable-java-binding         Build the Java binding"
+    echo "                               (JAVA_HOME must be defined in your environment)"
+    echo " --enable-nodejs-binding       Build Node.js binding"
+    echo "                               (NODE_INCLUDE, NODE_LIB must be defined)"
+    echo " --disable-ble-module          Do not build the BLE module"
+    echo " --system-deps-path            Searches for (installs, if needed) dependencies"
+    echo "                               in a location that is available system-wide, e.g."
+    echo "                               /usr/local. Default path is $local_install."
     exit 1
 }
 
@@ -68,7 +71,7 @@ process_args ()
               "--enable-nodejs-binding" ) enable_nodejs_binding=ON;;
               "--disable-ble-module" ) enable_ble_module=OFF;;
               "--toolchain-file" ) save_next_arg=2;;
-              "--install-dependencies" ) dependency_install_prefix=;;
+              "--system-deps-path" ) dependency_install_prefix=;;
               * ) usage;;
           esac
       fi
