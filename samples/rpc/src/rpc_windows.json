@@ -1,0 +1,30 @@
+{
+  "modules": [
+    {
+      "name": "rpc_source",
+      "loader": {
+        "name": "native",
+        "entrypoint": {
+          "module.path": "..\\..\\..\\modules\\rpc_source\\Debug\\rpc_source.dll"
+        }
+      },
+      "args": null
+    },
+    {
+      "name": "rpc_sink",
+      "loader": {
+        "name": "native",
+        "entrypoint": {
+          "module.path": "..\\..\\..\\modules\\rpc_sink\\Debug\\rpc_sink.dll"
+        }
+      },
+      "args": null
+    }
+  ],
+  "links": [
+    {
+      "source": "rpc_source",
+      "sink": "rpc_sink"
+    }
+  ]
+}

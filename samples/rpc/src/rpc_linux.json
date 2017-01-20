@@ -1,0 +1,30 @@
+{
+  "modules": [
+    {
+      "name": "rpc_source",
+      "loader": {
+        "name": "native",
+        "entrypoint": {
+          "module.path": "./modules/rpc_source/librpc_source.so"
+        }
+      },
+      "args": null
+    },
+    {
+      "name": "rpc_sink",
+      "loader": {
+        "name": "native",
+        "entrypoint": {
+          "module.path": "./modules/rpc_sink/librpc_sink.so"
+        }
+      },
+      "args": null
+    }
+  ],
+  "links": [
+    {
+      "source": "rpc_source",
+      "sink": "rpc_sink"
+    }
+  ]
+}
