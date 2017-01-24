@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 2.8.12)
 
 set(rpc_source_sources
-    ./src/rpc_source.c
+    ./src/rpc_source.cpp
 )
 
 set(rpc_source_headers
