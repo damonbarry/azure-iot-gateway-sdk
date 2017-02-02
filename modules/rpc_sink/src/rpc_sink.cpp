@@ -37,7 +37,8 @@ typedef struct rpc_sink_handle
     // client code
     //
     boost::shared_ptr<bond::comm::epoxy::EpoxyTransport> epoxy;
-    boost::shared_ptr<bond::comm::SocketAddress> loopback;
+    boost::shared_ptr<bond::comm::SocketAddress> transportLoopback;
+    boost::shared_ptr<bond::comm::SocketAddress> clientLoopback;
     //
     ////////////////////////////////
 } rpc_sink_handle;
@@ -70,6 +71,14 @@ struct TransportImpl : Transport
     }
 };
 
+const char* value_or_null(const char* value)
+{
+    return
+        (!value) ? nullptr :
+        (!value[0]) ? nullptr :
+        value;
+}
+
 struct ClientImpl : Client
 {
     // Client impl
@@ -82,17 +91,18 @@ struct ClientImpl : Client
 
         IOTHUB_CLIENT_CONFIG cfg;
         cfg.protocol = AMQP_Protocol; // ignore args.config.transport for now, just hard-code AMQP
-        cfg.deviceId = args.config.deviceId.c_str();
-        cfg.deviceKey = args.config.deviceKey.c_str();
-        cfg.deviceSasToken = args.config.deviceSasToken.c_str();
-        cfg.iotHubName = args.config.iotHubName.c_str();
-        cfg.iotHubSuffix = args.config.iotHubSuffix.c_str();
-        cfg.protocolGatewayHostName = args.config.protocolGatewayHostName.c_str();
+        cfg.deviceId = value_or_null(args.config.deviceId.c_str());
+        cfg.deviceKey = value_or_null(args.config.deviceKey.c_str());
+        cfg.deviceSasToken = value_or_null(args.config.deviceSasToken.c_str());
+        cfg.iotHubName = value_or_null(args.config.iotHubName.c_str());
+        cfg.iotHubSuffix = value_or_null(args.config.iotHubSuffix.c_str());
+        cfg.protocolGatewayHostName = value_or_null(args.config.protocolGatewayHostName.c_str());
 
         IOTHUB_CLIENT_HANDLE h = IoTHubClient_CreateWithTransport(transport, &cfg);
 
         Handle client_h;
         client_h.value = (uint64_t)h;
+        printf("service>> client handle = %#I64x\n", (uint64_t)h);
         callback(std::move(client_h));
     }
 
@@ -140,20 +150,22 @@ struct ClientImpl : Client
 
 static MODULE_HANDLE rpc_sink_create(BROKER_HANDLE broker, const void* configuration)
 {
-    auto loopback = boost::make_shared<bond::comm::SocketAddress>("127.0.0.1", 25188);
+    auto transportLoopback = boost::make_shared<bond::comm::SocketAddress>("127.0.0.1", 25188);
+    auto clientLoopback = boost::make_shared<bond::comm::SocketAddress>("127.0.0.1", 25189);
     auto transport = boost::make_shared<bond::comm::epoxy::EpoxyTransport>();
 
     // do we try...catch for errors? check for nullptr? something else?
-    auto transportService = transport->Bind(*loopback, boost::make_shared<TransportImpl>());
-    //auto clientService = transport.Bind(loopback, boost::make_shared<ClientImpl>());
+    auto transportService = transport->Bind(*transportLoopback, boost::make_shared<TransportImpl>());
+    auto clientService = transport->Bind(*clientLoopback, boost::make_shared<ClientImpl>());
 
     try
     {
         rpc_sink_handle* module_h = new rpc_sink_handle;
         module_h->transport = transportService;
-        module_h->client = nullptr; // clientService;
+        module_h->client = clientService;
         module_h->epoxy = transport;
-        module_h->loopback = loopback;
+        module_h->transportLoopback = transportLoopback;
+        module_h->clientLoopback = clientLoopback;
         return module_h;
     }
     catch (std::bad_alloc)
@@ -186,11 +198,31 @@ static void rpc_sink_start(MODULE_HANDLE module)
     transportArgs.iotHubName = "iot-sdks-test";
     transportArgs.iotHubSuffix = "azure-devices.net";
 
-    Transport::Proxy::Using<std::promise> transportProxy(module_h->epoxy->Connect(*module_h->loopback));
+    Transport::Proxy::Using<std::promise> transportProxy(module_h->epoxy->Connect(*module_h->transportLoopback));
+
     Handle transport_h = transportProxy.Create(std::move(transportArgs)).get().value().Deserialize();
 
-    printf("client>> transport handle = %#I64x\n", (uint64_t)transport_h.value);
+    printf("proxy>> transport handle = %#I64x\n", (uint64_t)transport_h.value);
 
+    ClientConfig config;
+    config.deviceId = "dlbtest01";
+    config.deviceKey = "ZDRJDsfDbNHeUs832SzYCxi73WEkgHM+4dU+zViHXfI=";
+    //config.deviceSasToken = "";
+    config.iotHubName = "iot-sdks-test";
+    config.iotHubSuffix = "azure-devices.net";
+    //config.protocolGatewayHostName = "";
+
+    CreateWithTransportArgs clientArgs;
+    clientArgs.transport = transport_h;
+    clientArgs.config = config;
+
+    Client::Proxy::Using<std::promise> clientProxy(module_h->epoxy->Connect(*module_h->clientLoopback));
+
+    Handle client_h = clientProxy.CreateWithTransport(std::move(clientArgs)).get().value().Deserialize();
+
+    printf("proxy>> client handle = %#I64x\n", (uint64_t)client_h.value);
+
+    clientProxy.Destroy(client_h);
     transportProxy.Destroy(transport_h);
     //
     ////////////////////////////////

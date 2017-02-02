@@ -56,6 +56,7 @@ static void rpc_source_start(MODULE_HANDLE module)
     //transportArgs.iotHubSuffix = "azure-devices.net";
 
     //Transport::Proxy::Using<std::promise> transportProxy(transport.Connect(loopback));
+
     //Handle transport_h = transportProxy.Create(std::move(transportArgs)).get().value().Deserialize();
 
     //ClientConfig config;
