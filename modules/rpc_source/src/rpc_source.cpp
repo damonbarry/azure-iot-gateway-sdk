@@ -6,12 +6,21 @@
 #include <crtdbg.h>
 #endif
 
-#include <azure_c_shared_utility/threadapi.h>
-#include <azure_c_shared_utility/xlogging.h>
-#include <azure_c_shared_utility/lock.h>
+#include <future>
+
 #include <module.h>
+#include <azure_c_shared_utility/lock.h>
+#include <azure_c_shared_utility/xlogging.h>
+
+#include <bond/core/bond.h>
+#include <bond/comm/transport/epoxy.h>
+
+#include "devices_comm.h"
+#include "devices_reflection.h"
 
 #include "rpc_source.h"
+
+using namespace microsoft::azure::devices;
 
 typedef struct rpc_source_handle
 {
@@ -37,6 +46,46 @@ static void rpc_source_free_config(void* configuration)
 static void rpc_source_start(MODULE_HANDLE module)
 {
     (void)module;
+
+    //bond::comm::SocketAddress loopback("127.0.0.1", 25188);
+    //bond::comm::epoxy::EpoxyTransport transport;
+
+    //CreateTransportArgs transportArgs;
+    //transportArgs.provider = Amqp;
+    //transportArgs.iotHubName = "iot-sdks-test";
+    //transportArgs.iotHubSuffix = "azure-devices.net";
+
+    //Transport::Proxy::Using<std::promise> transportProxy(transport.Connect(loopback));
+    //Handle transport_h = transportProxy.Create(std::move(transportArgs)).get().value().Deserialize();
+
+    //ClientConfig config;
+    //config.deviceId = "dlbtest01";
+    //config.deviceKey = "ZDRJDsfDbNHeUs832SzYCxi73WEkgHM+4dU+zViHXfI=";
+    ////config.deviceSasToken = "";
+    ////config.iotHubName = "iot-sdks-test";
+    ////config.iotHubSuffix = "azure-devices.net";
+    ////config.protocolGatewayHostName = "";
+
+    //CreateWithTransportArgs clientArgs;
+    //clientArgs.transport = transport_h;
+    //clientArgs.config = config;
+
+    //Client::Proxy::Using<std::promise> clientProxy(transport.Connect(loopback));
+    //Handle client_h = clientProxy.CreateWithTransport(std::move(clientArgs)).get().value().Deserialize();
+
+    ///*
+    //struct SendEventArgs
+    //{
+    //    ::microsoft::azure::devices::Handle client;
+    //    ::microsoft::azure::devices::Handle event;
+    //    ::microsoft::azure::devices::Ptr callback;
+    //    ::microsoft::azure::devices::Ptr context;
+    //}
+    //*/
+    //// TODO: call SendEvent
+
+    //clientProxy.Destroy(client_h);
+    //transportProxy.Destroy(transport_h);
 }
 
 static void rpc_source_destroy(MODULE_HANDLE module)

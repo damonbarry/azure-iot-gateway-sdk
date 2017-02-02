@@ -115,8 +115,10 @@ endif()
 function(add_module_to_solution undecoratedModuleName)
   set_target_properties(${undecoratedModuleName}
     PROPERTIES FOLDER "Modules/${undecoratedModuleName}")
-  set_target_properties(${undecoratedModuleName}_static
-    PROPERTIES FOLDER "Modules/${undecoratedModuleName}")
+  if(TARGET ${undecoratedModuleName}_static)
+    set_target_properties(${undecoratedModuleName}_static
+      PROPERTIES FOLDER "Modules/${undecoratedModuleName}")
+  endif()
 endfunction()
 
 function(add_binding_to_solution bindingLanguage)

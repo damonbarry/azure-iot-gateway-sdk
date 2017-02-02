@@ -5,7 +5,7 @@
       "loader": {
         "name": "native",
         "entrypoint": {
-          "module.path": "..\\..\\..\\modules\\rpc_source\\Debug\\rpc_source.dll"
+          "module.path": "D:\\azure-iot-gateway-sdk\\build\\modules\\rpc_source\\Debug\\rpc_source.dll"
         }
       },
       "args": null
@@ -15,7 +15,7 @@
       "loader": {
         "name": "native",
         "entrypoint": {
-          "module.path": "..\\..\\..\\modules\\rpc_sink\\Debug\\rpc_sink.dll"
+          "module.path": "D:\\azure-iot-gateway-sdk\\build\\modules\\rpc_sink\\Debug\\rpc_sink.dll"
         }
       },
       "args": null

@@ -1,0 +1,96 @@
+// Copyright (c) Microsoft. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace microsoft.azure.devices
+
+struct Handle
+{
+    0: uint64 value;
+}
+
+struct Ptr
+{
+    0: uint64 value;
+}
+
+//
+// Transport
+//
+
+enum TransportProvider
+{
+    Http,
+    Mqtt,
+    Amqp
+}
+
+struct CreateTransportArgs
+{
+    0: TransportProvider provider = Amqp; // !! This prevents people from using their own transport (i.e., not one of the three we provided)
+    1: string iotHubName;
+    2: string iotHubSuffix;
+}
+
+service Transport
+{
+    Handle Create(CreateTransportArgs);
+    void Destroy(Handle);
+}
+
+//
+// Client
+//
+
+enum ClientResultValue
+{
+    Ok,
+    InvalidArg,
+    Error,
+    InvalidSize,
+    IndefiniteTime
+}
+
+struct ClientResult
+{
+    0: ClientResultValue value = Ok;
+}
+
+struct ClientConfig
+{
+    0: TransportProvider transport = Amqp;
+    1: string deviceId;
+    2: string deviceKey;
+    3: string deviceSasToken;
+    4: string iotHubName;
+    5: string iotHubSuffix;
+    6: string protocolGatewayHostName;
+}
+
+struct CreateWithTransportArgs
+{
+    0: Handle transport;
+    1: ClientConfig config;
+}
+
+struct SendEventArgs
+{
+    0: Handle client;
+    1: Handle event;
+    2: Ptr callback;
+    3: Ptr context;
+}
+
+struct SetMessageCallbackArgs
+{
+    0: Handle client;
+    1: Ptr callback;
+    2: Ptr context;
+}
+
+service Client
+{
+    Handle CreateWithTransport(CreateWithTransportArgs);
+    ClientResult SendEventAsync(SendEventArgs);
+    ClientResult SetMessageCallback(SetMessageCallbackArgs);
+    void Destroy(Handle);
+}
