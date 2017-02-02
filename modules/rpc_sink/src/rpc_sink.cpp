@@ -33,14 +33,7 @@ typedef struct rpc_sink_handle
 {
     bond::comm::Server transport;
     bond::comm::Server client;
-    ////////////////////////////////
-    // client code
-    //
     boost::shared_ptr<bond::comm::epoxy::EpoxyTransport> epoxy;
-    boost::shared_ptr<bond::comm::SocketAddress> transportLoopback;
-    boost::shared_ptr<bond::comm::SocketAddress> clientLoopback;
-    //
-    ////////////////////////////////
 } rpc_sink_handle;
 
 // Implement service
@@ -161,11 +154,10 @@ static MODULE_HANDLE rpc_sink_create(BROKER_HANDLE broker, const void* configura
     try
     {
         rpc_sink_handle* module_h = new rpc_sink_handle;
+        // we want the services to listen for the lifetime of the module
         module_h->transport = transportService;
         module_h->client = clientService;
         module_h->epoxy = transport;
-        module_h->transportLoopback = transportLoopback;
-        module_h->clientLoopback = clientLoopback;
         return module_h;
     }
     catch (std::bad_alloc)
@@ -187,45 +179,7 @@ static void rpc_sink_free_config(void* configuration)
 
 static void rpc_sink_start(MODULE_HANDLE module)
 {
-    //(void)module;
-    rpc_sink_handle* module_h = (rpc_sink_handle*)module;
-
-    ////////////////////////////////
-    // client code
-    //
-    CreateTransportArgs transportArgs;
-    transportArgs.provider = Amqp;
-    transportArgs.iotHubName = "iot-sdks-test";
-    transportArgs.iotHubSuffix = "azure-devices.net";
-
-    Transport::Proxy::Using<std::promise> transportProxy(module_h->epoxy->Connect(*module_h->transportLoopback));
-
-    Handle transport_h = transportProxy.Create(std::move(transportArgs)).get().value().Deserialize();
-
-    printf("proxy>> transport handle = %#I64x\n", (uint64_t)transport_h.value);
-
-    ClientConfig config;
-    config.deviceId = "dlbtest01";
-    config.deviceKey = "ZDRJDsfDbNHeUs832SzYCxi73WEkgHM+4dU+zViHXfI=";
-    //config.deviceSasToken = "";
-    config.iotHubName = "iot-sdks-test";
-    config.iotHubSuffix = "azure-devices.net";
-    //config.protocolGatewayHostName = "";
-
-    CreateWithTransportArgs clientArgs;
-    clientArgs.transport = transport_h;
-    clientArgs.config = config;
-
-    Client::Proxy::Using<std::promise> clientProxy(module_h->epoxy->Connect(*module_h->clientLoopback));
-
-    Handle client_h = clientProxy.CreateWithTransport(std::move(clientArgs)).get().value().Deserialize();
-
-    printf("proxy>> client handle = %#I64x\n", (uint64_t)client_h.value);
-
-    clientProxy.Destroy(client_h);
-    transportProxy.Destroy(transport_h);
-    //
-    ////////////////////////////////
+    (void)module;
 }
 
 static void rpc_sink_destroy(MODULE_HANDLE module)

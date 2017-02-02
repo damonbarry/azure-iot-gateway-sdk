@@ -47,32 +47,36 @@ static void rpc_source_start(MODULE_HANDLE module)
 {
     (void)module;
 
-    //bond::comm::SocketAddress loopback("127.0.0.1", 25188);
-    //bond::comm::epoxy::EpoxyTransport transport;
+    bond::comm::SocketAddress transportLoopback("127.0.0.1", 25188);
+    bond::comm::SocketAddress clientLoopback("127.0.0.1", 25189);
+    bond::comm::epoxy::EpoxyTransport transport;
 
-    //CreateTransportArgs transportArgs;
-    //transportArgs.provider = Amqp;
-    //transportArgs.iotHubName = "iot-sdks-test";
-    //transportArgs.iotHubSuffix = "azure-devices.net";
+    CreateTransportArgs transportArgs;
+    transportArgs.provider = Amqp;
+    transportArgs.iotHubName = "iot-sdks-test";
+    transportArgs.iotHubSuffix = "azure-devices.net";
 
-    //Transport::Proxy::Using<std::promise> transportProxy(transport.Connect(loopback));
+    Transport::Proxy::Using<std::promise> transportProxy(transport.Connect(transportLoopback));
 
-    //Handle transport_h = transportProxy.Create(std::move(transportArgs)).get().value().Deserialize();
+    Handle transport_h = transportProxy.Create(std::move(transportArgs)).get().value().Deserialize();
 
-    //ClientConfig config;
-    //config.deviceId = "dlbtest01";
-    //config.deviceKey = "ZDRJDsfDbNHeUs832SzYCxi73WEkgHM+4dU+zViHXfI=";
-    ////config.deviceSasToken = "";
-    ////config.iotHubName = "iot-sdks-test";
-    ////config.iotHubSuffix = "azure-devices.net";
-    ////config.protocolGatewayHostName = "";
+    printf("proxy>> transport handle = %#I64x\n", (uint64_t)transport_h.value);
 
-    //CreateWithTransportArgs clientArgs;
-    //clientArgs.transport = transport_h;
-    //clientArgs.config = config;
+    ClientConfig config;
+    config.deviceId = "dlbtest01";
+    config.deviceKey = "ZDRJDsfDbNHeUs832SzYCxi73WEkgHM+4dU+zViHXfI=";
+    config.iotHubName = "iot-sdks-test";
+    config.iotHubSuffix = "azure-devices.net";
 
-    //Client::Proxy::Using<std::promise> clientProxy(transport.Connect(loopback));
-    //Handle client_h = clientProxy.CreateWithTransport(std::move(clientArgs)).get().value().Deserialize();
+    CreateWithTransportArgs clientArgs;
+    clientArgs.transport = transport_h;
+    clientArgs.config = config;
+
+    Client::Proxy::Using<std::promise> clientProxy(transport.Connect(clientLoopback));
+
+    Handle client_h = clientProxy.CreateWithTransport(std::move(clientArgs)).get().value().Deserialize();
+
+    printf("proxy>> client handle = %#I64x\n", (uint64_t)client_h.value);
 
     ///*
     //struct SendEventArgs
@@ -85,8 +89,8 @@ static void rpc_source_start(MODULE_HANDLE module)
     //*/
     //// TODO: call SendEvent
 
-    //clientProxy.Destroy(client_h);
-    //transportProxy.Destroy(transport_h);
+    clientProxy.Destroy(client_h);
+    transportProxy.Destroy(transport_h);
 }
 
 static void rpc_source_destroy(MODULE_HANDLE module)
