@@ -12,13 +12,6 @@
 #include <iothubtransportamqp.h>
 #include <iothub_client.h>
 
-////////////////////////////////
-// client code
-//
-#include <future>
-//
-////////////////////////////////
-
 #include <bond/core/bond.h>
 #include <bond/comm/transport/epoxy.h>
 
