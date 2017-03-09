@@ -3,16 +3,23 @@
 
 cmake_minimum_required(VERSION 2.8.12)
 
-set(rpc_source_sources
-    ./src/rpc_source.cpp
+set(iothub_proxy_sources
+    ./src/iothub_proxy.cpp
+    ../../modules/rpc_sink/src/devices_comm.cpp
+    ../../modules/rpc_sink/src/devices_types.cpp
 )
 
-set(rpc_source_headers
-    ./inc/rpc_source.h
+set(rpc_sink_headers
 )
 
 include_directories(./inc)
-include_directories(${GW_INC})
+include_directories(../../modules/rpc_sink/src)
+
+find_package(azure_iot_sdks REQUIRED)
+include_directories(${IOTHUB_CLIENT_INCLUDES})
+message(STATUS ">>>>> IOTHUB_CLIENT_INCLUDES=${IOTHUB_CLIENT_INCLUDES}")
+include_directories(${IOTHUB_CLIENT_INC_FOLDER})
+message(STATUS ">>>>> IOTHUB_CLIENT_INC_FOLDER=${IOTHUB_CLIENT_INC_FOLDER}")
 
 find_path(BOND_INCLUDES
     NAMES bond/core/bond.h
@@ -38,13 +45,10 @@ find_package(Boost REQUIRED COMPONENTS system thread)
 
 include_directories(${Boost_INCLUDE_DIRS})
 
-add_library(rpc_source MODULE ${rpc_source_sources} ${rpc_source_headers})
-target_link_libraries(rpc_source gateway iothub_proxy)
-linkSharedUtil(rpc_source)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 
-add_module_to_solution(rpc_source)
+add_library(iothub_proxy STATIC ${iothub_proxy_sources} ${iothub_proxy_headers})
+target_compile_definitions(iothub_proxy PRIVATE -D_WIN32_WINNT=0x0600)
+target_link_libraries(iothub_proxy iothub_client Boost::system Boost::thread ${BOND_LIBRARY} ${BOND_APPLY_LIBRARY})
 
-if(install_modules)
-    install(TARGETS rpc_source LIBRARY DESTINATION "${LIB_INSTALL_DIR}/modules") 
-endif()
-
+add_module_to_solution(iothub_proxy)

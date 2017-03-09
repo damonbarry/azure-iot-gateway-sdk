@@ -42,19 +42,11 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 
-#this builds the rpc_sink dynamic library
 add_library(rpc_sink MODULE ${rpc_sink_sources} ${rpc_sink_headers})
 target_compile_definitions(rpc_sink PRIVATE -D_WIN32_WINNT=0x0600)
 target_link_libraries(rpc_sink gateway iothub_client Boost::system Boost::thread ${BOND_LIBRARY} ${BOND_APPLY_LIBRARY})
-linkUAMQP(rpc_sink)
-
-#this builds the rpc_sink static library
-#add_library(rpc_sink_static STATIC ${rpc_sink_sources} ${rpc_sink_headers})
-#target_compile_definitions(rpc_sink_static PRIVATE BUILD_MODULE_TYPE_STATIC)
-#target_link_libraries(rpc_sink_static gateway)
-
 linkSharedUtil(rpc_sink)
-#linkSharedUtil(rpc_sink_static)
+linkUAMQP(rpc_sink)
 
 add_module_to_solution(rpc_sink)
 
