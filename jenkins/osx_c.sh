@@ -16,6 +16,9 @@ pushd $build_root/bindings/java/gateway-java-binding
 mvn clean install
 popd
 
+# .NET Core binding
+$build_root/tools/build_dotnet_core.sh
+
 rm -rf $build_folder
 mkdir -p $build_folder
 pushd $build_folder
