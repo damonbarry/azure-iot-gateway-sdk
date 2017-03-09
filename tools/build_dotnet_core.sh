@@ -31,10 +31,10 @@ do
     fi
 done
 
-if [ $build_config == 0 ]
+if [ "$build_config" = "0" ]
 then
     build_config=
-elif [ $build_config == 1 ]
+elif [ "$build_config" = "1" ]
 then
     exit 1
 fi
@@ -66,7 +66,7 @@ done
 
 for project in $projects_to_build
 do
-    dotnet build $project
+    dotnet build $build_config $project
     [ $? -eq 0 ] || exit $?
 done
 
