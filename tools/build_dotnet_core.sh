@@ -2,6 +2,8 @@
 # Copyright (c) Microsoft. All rights reserved.
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+set -xe
+
 build_root=$(cd "$(dirname "$0")/.." && pwd)
 
 usage ()
@@ -39,16 +41,16 @@ then
     exit 1
 fi
 
-binding_path="$build_root\bindings\dotnetcore\dotnet-core-binding"
-sample_modules_path="$build_root\samples\dotnet_core_module_sample\modules"
+binding_path="$build_root/bindings/dotnetcore/dotnet-core-binding"
+sample_modules_path="$build_root/samples/dotnet_core_module_sample/modules"
 
 projects_to_build="
-$binding_path\Microsoft.Azure.Devices.Gateway\Microsoft.Azure.Devices.Gateway.csproj
-$binding_path\E2ETestModule\E2ETestModule.csproj
-$sample_modules_path\PrinterModule\PrinterModule.csproj
-$sample_modules_path\SensorModule\SensorModule.csproj"
+$binding_path/Microsoft.Azure.Devices.Gateway/Microsoft.Azure.Devices.Gateway.csproj
+$binding_path/E2ETestModule/E2ETestModule.csproj
+$sample_modules_path/PrinterModule/PrinterModule.csproj
+$sample_modules_path/SensorModule/SensorModule.csproj"
 
-projects_to_test="$binding_path\Microsoft.Azure.Devices.Gateway.Tests\Microsoft.Azure.Devices.Gateway.Tests.csproj"
+projects_to_test="$binding_path/Microsoft.Azure.Devices.Gateway.Tests/Microsoft.Azure.Devices.Gateway.Tests.csproj"
 
 # ------------------------------------------------------------------------------
 # -- restore
