@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 2.8.12)
 
 if(WIN32)
     set(dotnetcore_utils_file ./src/adapters/dotnetcore_utils_windows.cpp)
-elseif(LINUX)
+elseif(UNIX)
     set(dotnetcore_utils_file ./src/adapters/dotnetcore_utils_linux.cpp)
 endif()
 
