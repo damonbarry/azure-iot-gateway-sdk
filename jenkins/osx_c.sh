@@ -21,6 +21,9 @@ pushd $build_root/proxy/gateway/java/gateway-remote-module
 mvn clean install
 popd
 
+# .NET Core binding
+$build_root/tools/build_dotnet_core.sh
+
 rm -rf $build_folder
 mkdir -p $build_folder
 pushd $build_folder
@@ -32,6 +35,7 @@ cmake \
     -Denable_ble_module:BOOL=OFF \
     -Denable_java_binding=ON \
     -Denable_java_remote_modules:BOOL=ON \
+    -Denable_dotnet_core_binding=ON \
     -Drun_unittests:BOOL=ON \
     -Drun_e2e_tests:BOOL=ON \
     ..

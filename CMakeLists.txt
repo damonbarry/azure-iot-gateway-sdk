@@ -283,21 +283,21 @@ set(dotnet_managed_binding_dll "${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnet/d
 set(dotnet_e2etest_module_dll "${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnet/dotnet-binding/E2ETestModule/bin/Any CPU/$(Configuration)/E2ETestModule.dll" CACHE INTERNAL "The location of the E2ETestModule.dll (windows)" FORCE)
 set(dotnet_sensor_module_dll "${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnet/dotnet-binding/SensorModule/bin/Any CPU/$(Configuration)/SensorModule.dll" CACHE INTERNAL "The location of the SensorModule.dll (windows)" FORCE)
 set(dotnet_printer_module_dll "${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnet/dotnet-binding/PrinterModule/bin/Any CPU/$(Configuration)/PrinterModule.dll" CACHE INTERNAL "The location of the PrinterModule.dll (windows)" FORCE)
-set(dotnet_host_binding_dll ${CMAKE_CURRENT_BINARY_DIR}/bindings/dotnet/${CMAKE_BUILD_TYPE}/dotnet.dll CACHE INTERNAL "The location of dotnet.dll" FORCE)
+set(dotnet_host_binding_dll "${CMAKE_CURRENT_BINARY_DIR}/bindings/dotnet/$(Configuration)/dotnet.dll" CACHE INTERNAL "The location of dotnet.dll" FORCE)
 
-set(dotnet_core_host_binding_dll ${CMAKE_CURRENT_BINARY_DIR}/bindings/dotnetcore/$(Configuration)/dotnetcore.dll CACHE INTERNAL "The location of dotnetcore.dll" FORCE)
-set(dotnet_core_host_binding_so ${CMAKE_CURRENT_BINARY_DIR}/bindings/dotnetcore/libdotnetcore.so CACHE INTERNAL "The location of libdotnetcore.so" FORCE)
-
-set(dotnet_core_managed_binding_dll ${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnetcore/dotnet-core-binding/Microsoft.Azure.Devices.Gateway/bin/${CMAKE_BUILD_TYPE}/netstandard1.6/Microsoft.Azure.Devices.Gateway.dll CACHE INTERNAL "The location of the Microsoft.Azure.Devices.Gateway.dll" FORCE)
-set(dotnet_core_e2etest_module_dll ${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnetcore/dotnet-core-binding/E2ETestModule/bin/${CMAKE_BUILD_TYPE}/netstandard1.6/E2ETestModule.dll CACHE INTERNAL "The location of the E2ETestModule.dll" FORCE)
-set(dotnet_core_sensor_module_dll ${CMAKE_CURRENT_BINARY_DIR}/../samples/dotnet_core_module_sample/modules/SensorModule/bin/${CMAKE_BUILD_TYPE}/netstandard1.6/SensorModule.dll CACHE INTERNAL "The location of the SensorModule.dll" FORCE)
-set(dotnet_core_printer_module_dll ${CMAKE_CURRENT_BINARY_DIR}/../samples/dotnet_core_module_sample/modules/PrinterModule/bin/${CMAKE_BUILD_TYPE}/netstandard1.6/PrinterModule.dll CACHE INTERNAL "The location of the PrinterModule.dll" FORCE)
+set(dotnet_core_host_binding_dll "${CMAKE_CURRENT_BINARY_DIR}/bindings/dotnetcore/$(Configuration)/dotnetcore.dll" CACHE INTERNAL "The location of dotnetcore.dll" FORCE)
+set(dotnet_core_managed_binding_dll "${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnetcore/dotnet-core-binding/Microsoft.Azure.Devices.Gateway/bin/$(Configuration)/netstandard1.6/Microsoft.Azure.Devices.Gateway.dll" CACHE INTERNAL "The location of the Microsoft.Azure.Devices.Gateway.dll" FORCE)
+set(dotnet_core_e2etest_module_dll "${CMAKE_CURRENT_BINARY_DIR}/../bindings/dotnetcore/dotnet-core-binding/E2ETestModule/bin/$(Configuration)/netstandard1.6/E2ETestModule.dll" CACHE INTERNAL "The location of the E2ETestModule.dll" FORCE)
+set(dotnet_core_sensor_module_dll "${CMAKE_CURRENT_BINARY_DIR}/../samples/dotnet_core_module_sample/modules/SensorModule/bin/$(Configuration)/netstandard1.6/SensorModule.dll" CACHE INTERNAL "The location of the SensorModule.dll" FORCE)
+set(dotnet_core_printer_module_dll "${CMAKE_CURRENT_BINARY_DIR}/../samples/dotnet_core_module_sample/modules/PrinterModule/bin/$(Configuration)/netstandard1.6/PrinterModule.dll" CACHE INTERNAL "The location of the PrinterModule.dll" FORCE)
 
 function(install_binaries whatIsBuilding whatIsBuildingLocation whatIsBinaryLocation)
-  add_custom_command(TARGET ${whatIsBuilding} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          ${whatIsBinaryLocation}
-          ${whatIsBuildingLocation})
+  if(WIN32)
+    add_custom_command(TARGET ${whatIsBuilding} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${whatIsBinaryLocation}
+            ${whatIsBuildingLocation})
+  endif()
 endfunction(install_binaries)
 
 

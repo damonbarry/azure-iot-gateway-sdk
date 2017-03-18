@@ -6,6 +6,7 @@
 // See the LICENSE file in the project root for more information.
 #include "azure_c_shared_utility/xlogging.h"
 #include <unistd.h>
+#include <limits.h>
 #include <string>
 #include "dotnetcore_common.h"
 #include "dotnetcore_utils.h"

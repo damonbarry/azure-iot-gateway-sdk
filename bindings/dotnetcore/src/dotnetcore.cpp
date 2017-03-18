@@ -185,7 +185,7 @@ static MODULE_HANDLE DotNetCore_Create(BROKER_HANDLE broker, const void* configu
                                         hCoreCLRModule = NULL;
                                         GatewayCreateDelegate = NULL;
                                         /* Codes_SRS_DOTNET_CORE_04_006: [ DotNetCore_Create shall return NULL if an underlying API call fails. ] */
-                                        LogError("Failed to create Create Delegate.");
+                                        LogError("Failed to create delegate 'Create' (error=%#x)", status);
                                     }
                                     else
                                     {
