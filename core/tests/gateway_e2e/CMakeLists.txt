@@ -19,6 +19,8 @@ if(WIN32)
     set(modules_c_file ./module_config_windows.c)
 elseif(LINUX)
     set(modules_c_file ./module_config_linux.c)
+elseif(APPLE)
+    set(modules_c_file ./module_config_osx.c)
 endif()
 
 set(${theseTestsName}_c_files

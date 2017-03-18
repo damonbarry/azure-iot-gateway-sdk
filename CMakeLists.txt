@@ -130,9 +130,12 @@ if(WIN32)
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /guard:cf")
 endif()
 
-if(LINUX)
-  set (CMAKE_C_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
-  set (CMAKE_CXX_FLAGS "-fPIC ${CMAKE_CXX_FLAGS}")
+if(WIN32)
+  # Make warning as error
+  add_definitions(/WX)
+else()
+  set (CMAKE_C_FLAGS "-Werror -fPIC ${CMAKE_C_FLAGS}")
+  set (CMAKE_CXX_FLAGS "-Werror -fPIC ${CMAKE_CXX_FLAGS}")
 endif()
 
 function(add_module_to_solution undecoratedModuleName)
@@ -196,9 +199,7 @@ endfunction(linkSharedUtil)
 include_directories(./deps/parson)
 
 function(link_broker whatIsBuilding)
-
-target_link_libraries(${whatIsBuilding} nanomsg ${NN_REQUIRED_LIBRARIES})
-
+  target_link_libraries(${whatIsBuilding} nanomsg ${NN_REQUIRED_LIBRARIES})
 endfunction(link_broker)
 
 function(install_broker whatIsBuilding whatIsBuildingLocation)
@@ -224,8 +225,6 @@ function(copy_gateway_dll whatIsBuilding whatIsBuildingLocation)
           "${azure_c_shared_utility_DIR}/../bin/${SHARED_UTIL_LIB}.dll"
           ${whatIsBuildingLocation})
     endif()
-
-
   endif()
 endfunction(copy_gateway_dll)
 

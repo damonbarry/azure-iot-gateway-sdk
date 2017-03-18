@@ -4,6 +4,8 @@
 #include "azure_c_shared_utility/xlogging.h"
 #include "azure_c_shared_utility/macro_utils.h"
 
+#include <stdlib.h>
+
 #include "gateway.h"
 #include "broker.h"
 #include "module_loader.h"
