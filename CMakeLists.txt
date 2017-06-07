@@ -302,6 +302,9 @@ function(install_binaries whatIsBuilding whatIsBuildingLocation whatIsBinaryLoca
           ${whatIsBuildingLocation})
 endfunction(install_binaries)
 
+message(STATUS ">>> enable_native_remote_modules=${enable_native_remote_modules}")
+message(STATUS ">>> enable_java_remote_modules=${enable_java_remote_modules}")
+message(STATUS ">>> enable_nodejs_remote_modules=${enable_nodejs_remote_modules}")
 
 if (${enable_native_remote_modules} OR ${enable_java_remote_modules} OR ${enable_nodejs_remote_modules})
     set(enable_core_remote_module_support TRUE CACHE INTERNAL "")
