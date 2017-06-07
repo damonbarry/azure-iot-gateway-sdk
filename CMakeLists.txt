@@ -311,6 +311,8 @@ add_subdirectory(core)
 
 include_directories(${GW_INC}) # GW_INC defined in core
 
+message(STATUS ">>> enable_core_remote_module_support=${enable_core_remote_module_support}")
+
 if (${enable_core_remote_module_support})
     cmake_minimum_required(VERSION 3.2.2)
     add_subdirectory(proxy)
