@@ -192,7 +192,7 @@ git submodule foreach --recursive --quiet "rm -r -f build/"
 mkdir -p "$cmake_root"
 pushd "$cmake_root"
 
-echo Calling cmake with: '$toolchainfile \
+echo Calling cmake with: $toolchainfile \
       $dependency_install_prefix \
       -DcompileOption_C:STRING="$extracloptions" \
       -DCMAKE_BUILD_TYPE="$build_config" \
@@ -209,7 +209,7 @@ echo Calling cmake with: '$toolchainfile \
       -Dbuild_cores=$CORES \
       -Drebuild_deps:BOOL=$rebuild_deps \
       -Duse_xplat_uuid:BOOL=$use_xplat_uuid \
-      "$build_root"'
+      "$build_root"
 
 cmake $toolchainfile \
       $dependency_install_prefix \
