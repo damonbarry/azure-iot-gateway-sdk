@@ -192,6 +192,25 @@ git submodule foreach --recursive --quiet "rm -r -f build/"
 mkdir -p "$cmake_root"
 pushd "$cmake_root"
 
+echo Calling cmake with: '$toolchainfile \
+      $dependency_install_prefix \
+      -DcompileOption_C:STRING="$extracloptions" \
+      -DCMAKE_BUILD_TYPE="$build_config" \
+      -Drun_unittests:BOOL=$run_unittests \
+      -Drun_e2e_tests:BOOL=$run_e2e_tests \
+      -Denable_java_binding:BOOL=$enable_java_binding \
+      -Denable_dotnet_core_binding:BOOL=$enable_dotnet_core_binding \
+      -Denable_nodejs_binding:BOOL=$enable_nodejs_binding \
+      -Denable_native_remote_modules:BOOL=$enable_native_remote_modules \
+      -Denable_nodejs_remote_modules:BOOL=$enable_nodejs_remote_modules \
+      -Denable_java_remote_modules:BOOL=$enable_java_remote_modules \
+      -Denable_ble_module:BOOL=$enable_ble_module \
+      -Drun_valgrind:BOOL=$run_valgrind \
+      -Dbuild_cores=$CORES \
+      -Drebuild_deps:BOOL=$rebuild_deps \
+      -Duse_xplat_uuid:BOOL=$use_xplat_uuid \
+      "$build_root"'
+
 cmake $toolchainfile \
       $dependency_install_prefix \
       -DcompileOption_C:STRING="$extracloptions" \
